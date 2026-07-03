@@ -180,4 +180,4 @@ run under bUnit + xUnit.
   contact for other terms)
 - Contact: Joel Parker Henderson &lt;joel@joelparkerhenderson.com&gt;
 - Canonical contract:
-  [`../../lily-design-system-svelte-helpers/lily-design-system-svelte-text-size-select/spec.md`](../../lily-design-system-svelte-helpers/lily-design-system-svelte-text-size-select/spec.md)
+  [`../../lily-design-system-svelte-helpers/lily-design-system-svelte-text-size-select/spec/index.md`](../../../lily-design-system-svelte-helpers/lily-design-system-svelte-text-size-select/spec/index.md)
