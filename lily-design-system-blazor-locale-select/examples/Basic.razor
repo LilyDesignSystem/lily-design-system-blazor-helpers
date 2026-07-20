@@ -1,19 +1,21 @@
 @*
-    01. Default select.
+    Basic — default rendering (icon button + listbox).
 
     The simplest possible mount. Each option renders with its locale's
     pretty name (from the built-in `locales.tsv` table), carrying a
     `lang="…"` attribute so screen readers pronounce each in the right
     language.
 
-    Outcome: a select with three options. Picking one writes
-    <html lang="…" dir="…"> and updates the bindable Value.
+    Outcome: a globe icon button that opens a listbox of three options.
+    Picking one writes <html lang="…" dir="…">, closes the listbox,
+    returns focus to the button, and updates the bindable Value.
 
     The status line is part of the pattern, not an extra. The closed
-    control always reads the placeholder word ("Choose your language"),
-    never the active locale name — so without this line neither a sighted
-    user nor a screen reader can read the current selection back off the
-    control. See docs/accessibility.md.
+    control is an icon button showing only the globe glyph, never the
+    active locale name — so without this line a sighted user has no way
+    to read the current selection off the control. (A screen-reader user
+    can: reopening the listbox announces the active option as
+    aria-selected.) See docs/accessibility.md.
 
     aria-live="polite" announces mutations only, so this stays silent on
     first paint and speaks once on each subsequent change — exactly what

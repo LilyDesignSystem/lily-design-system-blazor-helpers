@@ -1,15 +1,15 @@
 @*
-    07. Wiring per-component .resx files.
+    With ResX — wiring per-component .resx files.
 
     Instead of a shared SharedResources.resx, each component owns its
     own resource files. Blazor's IStringLocalizer<TComponent> resolves
     to e.g. WithResX.fr.resx automatically.
 
     Filesystem layout:
-        examples/07_WithResX.razor
-        examples/07_WithResX.resx       (English defaults)
-        examples/07_WithResX.fr.resx
-        examples/07_WithResX.ar.resx
+        examples/WithResX.razor
+        examples/WithResX.resx       (English defaults)
+        examples/WithResX.fr.resx
+        examples/WithResX.ar.resx
 
     Outcome: choosing a locale flips CultureInfo and the strings
     re-resolve against this component's own resource files.
