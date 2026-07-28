@@ -1,7 +1,7 @@
 @namespace LilyDesignSystem.Blazor.Helpers
 
 @*
-    ShareChooser — Blazor helper component.
+    SharePicker — Blazor helper component.
     Single source of truth: spec/index.md (§1–§9).
 
     Renders a single-glyph button (➤, U+27A4) that opens the native share
@@ -22,7 +22,7 @@
      @attributes="AdditionalAttributes">
 
     <button type="button"
-            class="share-chooser-button"
+            class="share-picker-button"
             @ref="_triggerElement"
             aria-label="@Label"
             aria-expanded="@(_open ? "true" : "false")"
@@ -38,13 +38,13 @@
         {
             @* The glyph is decorative: the accessible name is the button's
                aria-label, never the character itself. *@
-            <span class="share-chooser-icon" aria-hidden="true">@BlackRightwardsArrowhead</span>
+            <span class="share-picker-icon" aria-hidden="true">@BlackRightwardsArrowhead</span>
         }
     </button>
 
     @* mousedown default is suppressed so pressing an item does not blur
        the focused element before the click handler runs. *@
-    <ul class="share-chooser-list"
+    <ul class="share-picker-list"
         id="@ListId"
         hidden="@(!_open)"
         @ref="_listElement"
@@ -54,11 +54,11 @@
         {
             var index = i;
             var target = Targets[index];
-            <li class="share-chooser-list-item">
+            <li class="share-picker-list-item">
                 @* A real link, not role="menuitem": these ARE navigation, and
                    menuitem would strip middle-click, open-in-new-tab and
                    copy-link-address. *@
-                <a class="share-chooser-target"
+                <a class="share-picker-target"
                    data-target-id="@target.Id"
                    href="@target.Href(CurrentUrl(), Title, Text)"
                    target="@(target.NewTab ? "_blank" : null)"
@@ -71,9 +71,9 @@
 
         @if (HasCopy)
         {
-            <li class="share-chooser-list-item">
+            <li class="share-picker-list-item">
                 <button type="button"
-                        class="share-chooser-copy"
+                        class="share-picker-copy"
                         @ref="_itemElements[Targets.Count]"
                         @onfocus="() => OnItemFocus(Targets.Count)"
                         @onclick="CopyAsync">@CopyLabel</button>
@@ -84,5 +84,5 @@
     @* Copying gives no visual feedback of its own, so the outcome is
        announced. Empty until something happens, so it stays silent on
        load; aria-live announces mutations only. *@
-    <p class="share-chooser-status" aria-live="polite">@_status</p>
+    <p class="share-picker-status" aria-live="polite">@_status</p>
 </div>

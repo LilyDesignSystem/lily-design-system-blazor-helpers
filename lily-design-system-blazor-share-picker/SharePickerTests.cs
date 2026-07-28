@@ -1,4 +1,4 @@
-// ShareChooser tests — one [Fact] per spec/index.md §7 acceptance criterion.
+// SharePicker tests — one [Fact] per spec/index.md §7 acceptance criterion.
 //
 // Two harness notes, both consequences of bUnit rather than of the component:
 //
@@ -34,7 +34,7 @@ using Xunit;
 
 namespace LilyDesignSystem.Blazor.Helpers.Tests;
 
-public class ShareChooserTests : TestContext
+public class SharePickerTests : TestContext
 {
     private const string UrlUnderTest = "https://example.test/article";
 
@@ -58,7 +58,7 @@ public class ShareChooserTests : TestContext
         },
     };
 
-    public ShareChooserTests()
+    public SharePickerTests()
     {
         // Loose so the eval and focus calls do not throw. With no explicit
         // setup, eval yields default(T): no share sheet, no clipboard.
@@ -104,7 +104,7 @@ public class ShareChooserTests : TestContext
     private string? LastFocusedRefId() => FocusedRefIds().LastOrDefault();
 
     /// <summary>
-    /// A rendered ShareChooser plus the element-reference GUIDs captured from
+    /// A rendered SharePicker plus the element-reference GUIDs captured from
     /// its first render, so tests can name the element focus landed on.
     /// </summary>
     private sealed class RefMap
@@ -124,28 +124,28 @@ public class ShareChooserTests : TestContext
     /// GUIDs on that render; they remain valid afterwards, so this must be
     /// called before any interaction.
     /// </summary>
-    private static RefMap MapRefs(IRenderedComponent<ShareChooser> cut)
+    private static RefMap MapRefs(IRenderedComponent<SharePicker> cut)
     {
         var found = RefPattern.Matches(cut.Markup)
             .Select(m => (Class: m.Groups["class"].Value, Id: m.Groups["id"].Value))
             .ToList();
 
-        var trigger = found.Single(f => f.Class.Contains("share-chooser-button")).Id;
+        var trigger = found.Single(f => f.Class.Contains("share-picker-button")).Id;
 
         // Same order, and the same membership rule, as the canonical Svelte
-        // implementation's items(): ".share-chooser-target, .share-chooser-copy".
+        // implementation's items(): ".share-picker-target, .share-picker-copy".
         var items = found
-            .Where(f => f.Class.Contains("share-chooser-target")
-                || f.Class.Contains("share-chooser-copy"))
+            .Where(f => f.Class.Contains("share-picker-target")
+                || f.Class.Contains("share-picker-copy"))
             .Select(f => f.Id)
             .ToList();
 
         return new RefMap { Trigger = trigger, Items = items };
     }
 
-    private IRenderedComponent<ShareChooser> Render(
-        Action<ComponentParameterCollectionBuilder<ShareChooser>>? extra = null)
-        => RenderComponent<ShareChooser>(p =>
+    private IRenderedComponent<SharePicker> Render(
+        Action<ComponentParameterCollectionBuilder<SharePicker>>? extra = null)
+        => RenderComponent<SharePicker>(p =>
         {
             p.Add(x => x.Label, "Share")
              .Add(x => x.Targets, Targets)
@@ -153,14 +153,14 @@ public class ShareChooserTests : TestContext
             extra?.Invoke(p);
         });
 
-    private static void Key(IRenderedComponent<ShareChooser> cut, string selector, string key)
+    private static void Key(IRenderedComponent<SharePicker> cut, string selector, string key)
         => cut.Find(selector).KeyDown(new KeyboardEventArgs { Key = key });
 
-    private static bool ListHidden(IRenderedComponent<ShareChooser> cut)
-        => cut.Find("ul.share-chooser-list").HasAttribute("hidden");
+    private static bool ListHidden(IRenderedComponent<SharePicker> cut)
+        => cut.Find("ul.share-picker-list").HasAttribute("hidden");
 
-    private static string Status(IRenderedComponent<ShareChooser> cut)
-        => cut.Find("p.share-chooser-status").TextContent.Trim();
+    private static string Status(IRenderedComponent<SharePicker> cut)
+        => cut.Find("p.share-picker-status").TextContent.Trim();
 
     // =================================================================
     // Markup contract — §7.1–§7.6
@@ -174,9 +174,9 @@ public class ShareChooserTests : TestContext
     {
         var cut = Render();
 
-        Assert.NotNull(cut.Find("div.share-chooser"));
+        Assert.NotNull(cut.Find("div.share-picker"));
 
-        var button = cut.Find("button.share-chooser-button");
+        var button = cut.Find("button.share-picker-button");
         Assert.Equal("button", button.GetAttribute("type"));
         Assert.Equal("Share", button.GetAttribute("aria-label"));
         Assert.Equal("false", button.GetAttribute("aria-expanded"));
@@ -188,7 +188,7 @@ public class ShareChooserTests : TestContext
         var listId = button.GetAttribute("aria-controls");
         Assert.False(string.IsNullOrEmpty(listId));
 
-        var list = cut.Find("ul.share-chooser-list");
+        var list = cut.Find("ul.share-picker-list");
         Assert.Equal(listId, list.GetAttribute("id"));
         Assert.Null(list.GetAttribute("role"));
     }
@@ -201,10 +201,10 @@ public class ShareChooserTests : TestContext
     {
         var cut = Render();
 
-        var icon = cut.Find(".share-chooser-icon");
+        var icon = cut.Find(".share-picker-icon");
         // U+27A4 BLACK RIGHTWARDS ARROWHEAD.
         Assert.Equal("\u27A4", icon.TextContent.Trim());
-        Assert.Equal("\u27A4", ShareChooser.BlackRightwardsArrowhead);
+        Assert.Equal("\u27A4", SharePicker.BlackRightwardsArrowhead);
         // The accessible name is the button's aria-label, never the glyph.
         Assert.Equal("true", icon.GetAttribute("aria-hidden"));
     }
@@ -215,11 +215,11 @@ public class ShareChooserTests : TestContext
     [Fact]
     public void Section_7_1_Each_Instance_Gets_A_Distinct_List_Id()
     {
-        var first = Render().Find("button.share-chooser-button").GetAttribute("aria-controls");
-        var second = Render().Find("button.share-chooser-button").GetAttribute("aria-controls");
+        var first = Render().Find("button.share-picker-button").GetAttribute("aria-controls");
+        var second = Render().Find("button.share-picker-button").GetAttribute("aria-controls");
 
         Assert.NotEqual(first, second);
-        Assert.NotEqual(ShareChooser.NextShareChooserId(), ShareChooser.NextShareChooserId());
+        Assert.NotEqual(SharePicker.NextSharePickerId(), SharePicker.NextSharePickerId());
     }
 
     // -----------------------------------------------------------------
@@ -231,10 +231,10 @@ public class ShareChooserTests : TestContext
         var cut = Render();
         Assert.True(ListHidden(cut));
 
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
         Assert.False(ListHidden(cut));
-        Assert.Equal("true", cut.Find("button.share-chooser-button").GetAttribute("aria-expanded"));
+        Assert.Equal("true", cut.Find("button.share-picker-button").GetAttribute("aria-expanded"));
     }
 
     // -----------------------------------------------------------------
@@ -245,9 +245,9 @@ public class ShareChooserTests : TestContext
     public void Section_7_3_Destinations_Are_Real_Links_Not_Menuitems()
     {
         var cut = Render();
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
-        var links = cut.FindAll("a.share-chooser-target");
+        var links = cut.FindAll("a.share-picker-target");
         Assert.Equal(2, links.Count);
 
         foreach (var link in links)
@@ -278,13 +278,13 @@ public class ShareChooserTests : TestContext
             },
         };
 
-        var cut = RenderComponent<ShareChooser>(p => p
+        var cut = RenderComponent<SharePicker>(p => p
             .Add(x => x.Label, "Share")
             .Add(x => x.Targets, sameTab)
             .Add(x => x.Url, UrlUnderTest));
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
-        Assert.Null(cut.Find("a.share-chooser-target").GetAttribute("target"));
+        Assert.Null(cut.Find("a.share-picker-target").GetAttribute("target"));
     }
 
     // -----------------------------------------------------------------
@@ -294,9 +294,9 @@ public class ShareChooserTests : TestContext
     public void Section_7_4_Each_Destination_Href_Comes_From_Its_Own_Href_Function()
     {
         var cut = Render(p => p.Add(x => x.Title, "Hello"));
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
-        var links = cut.FindAll("a.share-chooser-target");
+        var links = cut.FindAll("a.share-picker-target");
 
         Assert.Equal(
             $"https://mastodon.test/share?url={Uri.EscapeDataString(UrlUnderTest)}"
@@ -316,13 +316,13 @@ public class ShareChooserTests : TestContext
     public void Section_7_5_Copy_Item_Renders_Only_When_CopyLabel_Is_Supplied()
     {
         var without = Render();
-        without.Find("button.share-chooser-button").Click();
-        Assert.Empty(without.FindAll("button.share-chooser-copy"));
+        without.Find("button.share-picker-button").Click();
+        Assert.Empty(without.FindAll("button.share-picker-copy"));
 
         var with = Render(p => p.Add(x => x.CopyLabel, "Copy link"));
-        with.Find("button.share-chooser-button").Click();
+        with.Find("button.share-picker-button").Click();
 
-        var copy = with.Find("button.share-chooser-copy");
+        var copy = with.Find("button.share-picker-copy");
         Assert.Equal("BUTTON", copy.TagName);
         Assert.Equal("button", copy.GetAttribute("type"));
         Assert.Equal("Copy link", copy.TextContent.Trim());
@@ -336,7 +336,7 @@ public class ShareChooserTests : TestContext
     {
         var cut = Render();
 
-        var status = cut.Find("p.share-chooser-status");
+        var status = cut.Find("p.share-picker-status");
         Assert.Equal("polite", status.GetAttribute("aria-live"));
         // Empty on load, so it announces the copy outcome and nothing else.
         Assert.Equal("", status.TextContent.Trim());
@@ -359,12 +359,12 @@ public class ShareChooserTests : TestContext
             .Add(x => x.CopyLabel, "Copy link")
             .Add(x => x.OnCopy, url => copied = url));
 
-        cut.Find("button.share-chooser-button").Click();
-        cut.Find("button.share-chooser-copy").Click();
+        cut.Find("button.share-picker-button").Click();
+        cut.Find("button.share-picker-copy").Click();
 
         var call = Assert.Single(CopyCalls());
         // The script the component sent carries the URL it meant to write.
-        Assert.Equal(ShareChooser.BuildCopyScript(UrlUnderTest), (string)call.Arguments[0]!);
+        Assert.Equal(SharePicker.BuildCopyScript(UrlUnderTest), (string)call.Arguments[0]!);
         Assert.Contains($"\"{UrlUnderTest}\"", (string)call.Arguments[0]!);
 
         Assert.Equal(UrlUnderTest, copied);
@@ -382,8 +382,8 @@ public class ShareChooserTests : TestContext
             .Add(x => x.CopyLabel, "Copy link")
             .Add(x => x.CopiedLabel, "Link copied"));
 
-        cut.Find("button.share-chooser-button").Click();
-        cut.Find("button.share-chooser-copy").Click();
+        cut.Find("button.share-picker-button").Click();
+        cut.Find("button.share-picker-copy").Click();
 
         Assert.Equal("Link copied", Status(cut));
         Assert.True(ListHidden(cut));
@@ -402,9 +402,9 @@ public class ShareChooserTests : TestContext
             .Add(x => x.CopiedLabel, "Link copied")
             .Add(x => x.CopyFailedLabel, "Could not copy"));
 
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
         // Reaching the assertions at all is the "does not throw" half.
-        cut.Find("button.share-chooser-copy").Click();
+        cut.Find("button.share-picker-copy").Click();
 
         Assert.Equal("Could not copy", Status(cut));
         Assert.True(ListHidden(cut));
@@ -418,16 +418,16 @@ public class ShareChooserTests : TestContext
     {
         // No StubClipboard: the copy script is unmatched, so it resolves
         // false — a browser with no navigator.clipboard at all.
-        JSInterop.Setup<bool>("eval", inv => (string)inv.Arguments[0]! == ShareChooser.CanCopyScript)
+        JSInterop.Setup<bool>("eval", inv => (string)inv.Arguments[0]! == SharePicker.CanCopyScript)
             .SetResult(false);
-        Assert.False(await ShareChooser.CanCopyAsync(JSInterop.JSRuntime));
+        Assert.False(await SharePicker.CanCopyAsync(JSInterop.JSRuntime));
 
         var cut = Render(p => p
             .Add(x => x.CopyLabel, "Copy link")
             .Add(x => x.CopyFailedLabel, "Could not copy"));
 
-        cut.Find("button.share-chooser-button").Click();
-        cut.Find("button.share-chooser-copy").Click();
+        cut.Find("button.share-picker-button").Click();
+        cut.Find("button.share-picker-copy").Click();
 
         Assert.Equal("Could not copy", Status(cut));
     }
@@ -443,12 +443,12 @@ public class ShareChooserTests : TestContext
     public async Task Section_7_11_CanShareNatively_Reflects_Navigator_Share()
     {
         // Unmatched -> false: no sheet.
-        Assert.False(await ShareChooser.CanShareNativelyAsync(JSInterop.JSRuntime));
+        Assert.False(await SharePicker.CanShareNativelyAsync(JSInterop.JSRuntime));
 
-        JSInterop.Setup<bool>("eval", inv => (string)inv.Arguments[0]! == ShareChooser.CanShareScript)
+        JSInterop.Setup<bool>("eval", inv => (string)inv.Arguments[0]! == SharePicker.CanShareScript)
             .SetResult(true);
 
-        Assert.True(await ShareChooser.CanShareNativelyAsync(JSInterop.JSRuntime));
+        Assert.True(await SharePicker.CanShareNativelyAsync(JSInterop.JSRuntime));
     }
 
     // -----------------------------------------------------------------
@@ -466,7 +466,7 @@ public class ShareChooserTests : TestContext
             .Add(x => x.Text, "Body")
             .Add(x => x.OnNativeShare, url => shared = url));
 
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
         var call = Assert.Single(ShareCalls());
         var script = (string)call.Arguments[0]!;
@@ -487,7 +487,7 @@ public class ShareChooserTests : TestContext
     {
         // Unmatched -> null -> Unsupported.
         var cut = Render();
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
         Assert.Single(ShareCalls());
         Assert.False(ListHidden(cut));
@@ -502,7 +502,7 @@ public class ShareChooserTests : TestContext
         StubNativeShare("shared");
 
         var cut = Render(p => p.Add(x => x.Strategy, ShareStrategy.List));
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
         // Never even asked.
         Assert.Empty(ShareCalls());
@@ -519,7 +519,7 @@ public class ShareChooserTests : TestContext
         StubNativeShare("dismissed");
 
         var cut = Render();
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
         Assert.Single(ShareCalls());
         Assert.True(ListHidden(cut));
@@ -540,7 +540,7 @@ public class ShareChooserTests : TestContext
         StubNativeShare(sentinel);
 
         var cut = Render();
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
         Assert.Equal(expectHidden, ListHidden(cut));
     }
@@ -558,7 +558,7 @@ public class ShareChooserTests : TestContext
         var cut = Render(p => p.Add(x => x.CopyLabel, "Copy link"));
         var refs = MapRefs(cut);
 
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
         Assert.Equal(refs.Items[0], LastFocusedRefId());
     }
@@ -572,7 +572,7 @@ public class ShareChooserTests : TestContext
         var cut = Render(p => p.Add(x => x.CopyLabel, "Copy link"));
         var refs = MapRefs(cut);
 
-        Key(cut, "button.share-chooser-button", "ArrowDown");
+        Key(cut, "button.share-picker-button", "ArrowDown");
 
         Assert.False(ListHidden(cut));
         Assert.Equal(refs.Items[0], LastFocusedRefId());
@@ -587,7 +587,7 @@ public class ShareChooserTests : TestContext
         var cut = Render(p => p.Add(x => x.CopyLabel, "Copy link"));
         var refs = MapRefs(cut);
 
-        Key(cut, "button.share-chooser-button", "ArrowUp");
+        Key(cut, "button.share-picker-button", "ArrowUp");
 
         Assert.False(ListHidden(cut));
         // Two destinations then copy: the copy button is last.
@@ -604,22 +604,22 @@ public class ShareChooserTests : TestContext
         var cut = Render(p => p.Add(x => x.CopyLabel, "Copy link"));
         var refs = MapRefs(cut);
 
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
         Assert.Equal(refs.Items[0], LastFocusedRefId());
 
-        Key(cut, "ul.share-chooser-list", "ArrowDown");
+        Key(cut, "ul.share-picker-list", "ArrowDown");
         Assert.Equal(refs.Items[1], LastFocusedRefId());
 
-        Key(cut, "ul.share-chooser-list", "ArrowUp");
+        Key(cut, "ul.share-picker-list", "ArrowUp");
         Assert.Equal(refs.Items[0], LastFocusedRefId());
 
         // Clamps rather than wrapping: still the first item, not the last.
-        Key(cut, "ul.share-chooser-list", "ArrowUp");
+        Key(cut, "ul.share-picker-list", "ArrowUp");
         Assert.Equal(refs.Items[0], LastFocusedRefId());
 
         // And clamps at the bottom too.
-        Key(cut, "ul.share-chooser-list", "End");
-        Key(cut, "ul.share-chooser-list", "ArrowDown");
+        Key(cut, "ul.share-picker-list", "End");
+        Key(cut, "ul.share-picker-list", "ArrowDown");
         Assert.Equal(refs.Items[^1], LastFocusedRefId());
     }
 
@@ -632,12 +632,12 @@ public class ShareChooserTests : TestContext
         var cut = Render(p => p.Add(x => x.CopyLabel, "Copy link"));
         var refs = MapRefs(cut);
 
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
-        Key(cut, "ul.share-chooser-list", "End");
+        Key(cut, "ul.share-picker-list", "End");
         Assert.Equal(refs.Items[^1], LastFocusedRefId());
 
-        Key(cut, "ul.share-chooser-list", "Home");
+        Key(cut, "ul.share-picker-list", "Home");
         Assert.Equal(refs.Items[0], LastFocusedRefId());
     }
 
@@ -650,11 +650,11 @@ public class ShareChooserTests : TestContext
         var cut = Render(p => p.Add(x => x.CopyLabel, "Copy link"));
         var refs = MapRefs(cut);
 
-        cut.Find("button.share-chooser-button").Click();
-        Key(cut, "ul.share-chooser-list", "Escape");
+        cut.Find("button.share-picker-button").Click();
+        Key(cut, "ul.share-picker-list", "Escape");
 
         Assert.True(ListHidden(cut));
-        Assert.Equal("false", cut.Find("button.share-chooser-button").GetAttribute("aria-expanded"));
+        Assert.Equal("false", cut.Find("button.share-picker-button").GetAttribute("aria-expanded"));
         Assert.Equal(refs.Trigger, LastFocusedRefId());
     }
 
@@ -667,10 +667,10 @@ public class ShareChooserTests : TestContext
         var cut = Render(p => p.Add(x => x.CopyLabel, "Copy link"));
         var refs = MapRefs(cut);
 
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
         var beforeTab = FocusedRefIds().Count;
 
-        Key(cut, "ul.share-chooser-list", "Tab");
+        Key(cut, "ul.share-picker-list", "Tab");
 
         Assert.True(ListHidden(cut));
         // Focus goes where the browser was already sending it: the component
@@ -689,7 +689,7 @@ public class ShareChooserTests : TestContext
 
         var cut = Render(p => p.Add(x => x.OnShare, args => chosen = args));
 
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
         cut.Find("a[data-target-id='linkedin']").Click();
 
         Assert.NotNull(chosen);
@@ -704,7 +704,7 @@ public class ShareChooserTests : TestContext
     // DEVIATION from the canonical Svelte suite, which asserts "clicking
     // outside closes". Svelte reaches that via a document-level click
     // listener; this package ships no JS and adds no document listener, so
-    // the root's focusout does the job — the same deviation TextSizeChooser
+    // the root's focusout does the job — the same deviation TextSizePicker
     // documents. Two focusouts are fired because that is what a browser
     // does: the first is the component's own open-time focus move (which
     // must be ignored), the second is the genuine departure.
@@ -714,10 +714,10 @@ public class ShareChooserTests : TestContext
     {
         var cut = Render(p => p.Add(x => x.CopyLabel, "Copy link"));
 
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
         Assert.False(ListHidden(cut));
 
-        var root = cut.Find("div.share-chooser");
+        var root = cut.Find("div.share-picker");
 
         // The component's own focus move: ignored, list stays open.
         root.TriggerEvent("onfocusout", new FocusEventArgs());
@@ -739,9 +739,9 @@ public class ShareChooserTests : TestContext
     public void Section_7_20_Explicit_Url_Wins()
     {
         var cut = Render();
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
-        var href = cut.Find("a.share-chooser-target").GetAttribute("href")!;
+        var href = cut.Find("a.share-picker-target").GetAttribute("href")!;
         Assert.Contains(Uri.EscapeDataString(UrlUnderTest), href);
     }
 
@@ -755,12 +755,12 @@ public class ShareChooserTests : TestContext
     {
         var navigation = Services.GetRequiredService<NavigationManager>();
 
-        var cut = RenderComponent<ShareChooser>(p => p
+        var cut = RenderComponent<SharePicker>(p => p
             .Add(x => x.Label, "Share")
             .Add(x => x.Targets, Targets));
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
 
-        var href = cut.Find("a.share-chooser-target").GetAttribute("href")!;
+        var href = cut.Find("a.share-picker-target").GetAttribute("href")!;
         Assert.Contains(Uri.EscapeDataString(navigation.Uri), href);
     }
 
@@ -770,7 +770,7 @@ public class ShareChooserTests : TestContext
     [Fact]
     public void Section_7_22_ChildContent_Replaces_The_Glyph_And_Gets_Context()
     {
-        RenderFragment<ShareChooserContext> custom_glyph = context => builder =>
+        RenderFragment<SharePickerContext> custom_glyph = context => builder =>
         {
             builder.OpenElement(0, "span");
             builder.AddAttribute(1, "data-testid", "custom");
@@ -788,12 +788,12 @@ public class ShareChooserTests : TestContext
         Assert.Equal(UrlUnderTest, custom.GetAttribute("data-url"));
 
         // It replaces the glyph rather than sitting beside it.
-        Assert.Empty(cut.FindAll(".share-chooser-icon"));
+        Assert.Empty(cut.FindAll(".share-picker-icon"));
         // And it lives inside the trigger.
-        Assert.NotNull(cut.Find("button.share-chooser-button [data-testid='custom']"));
+        Assert.NotNull(cut.Find("button.share-picker-button [data-testid='custom']"));
 
         // The context tracks the open state.
-        cut.Find("button.share-chooser-button").Click();
+        cut.Find("button.share-picker-button").Click();
         Assert.Equal("true", cut.Find("[data-testid='custom']").GetAttribute("data-open"));
     }
 
@@ -813,8 +813,8 @@ public class ShareChooserTests : TestContext
             .AddUnmatched("data-testid", "root")
             .AddUnmatched("id", "share-1"));
 
-        var root = cut.Find("div.share-chooser");
-        Assert.Equal("share-chooser my-share", root.GetAttribute("class"));
+        var root = cut.Find("div.share-picker");
+        Assert.Equal("share-picker my-share", root.GetAttribute("class"));
         Assert.Equal("root", root.GetAttribute("data-testid"));
         Assert.Equal("share-1", root.GetAttribute("id"));
     }

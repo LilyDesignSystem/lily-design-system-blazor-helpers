@@ -11,13 +11,13 @@
     your theme CSS to a wrapping data-theme attribute via OnChange.
 *@
 
-@page "/examples/theme-chooser/multiple-selects"
+@page "/examples/theme-picker/multiple-selects"
 @rendermode InteractiveServer
 @using LilyDesignSystem.Blazor.Helpers
 
 <section>
     <h2>Region A</h2>
-    <ThemeChooser
+    <ThemePicker
         Label="Region A theme"
         Name="region-a"
         ThemesUrl="/assets/themes/"
@@ -26,7 +26,7 @@
 
 <section>
     <h2>Region B</h2>
-    <ThemeChooser
+    <ThemePicker
         Label="Region B theme"
         Name="region-b"
         ThemesUrl="/assets/themes/"

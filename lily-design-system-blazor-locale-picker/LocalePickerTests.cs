@@ -1,4 +1,4 @@
-// LocaleChooser tests — one [Fact] per spec/index.md §7 acceptance criterion.
+// LocalePicker tests — one [Fact] per spec/index.md §7 acceptance criterion.
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -11,11 +11,11 @@ using Xunit;
 
 namespace LilyDesignSystem.Blazor.Helpers.Tests;
 
-public class LocaleChooserTests : TestContext
+public class LocalePickerTests : TestContext
 {
     private static readonly string[] LocalesList = { "en", "en_US", "fr", "fr_CA", "ar" };
 
-    public LocaleChooserTests()
+    public LocalePickerTests()
     {
         // Loose JSInterop: the apply-script eval, the localStorage /
         // navigator probes, and the FocusAsync interop should not block
@@ -26,12 +26,12 @@ public class LocaleChooserTests : TestContext
         JSInterop.Setup<string[]?>("eval", _ => true).SetResult(System.Array.Empty<string>());
     }
 
-    private IRenderedComponent<LocaleChooser> RenderDefault()
-        => RenderComponent<LocaleChooser>(p => p
+    private IRenderedComponent<LocalePicker> RenderDefault()
+        => RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, LocalesList));
 
-    private static void Key(IRenderedComponent<LocaleChooser> cut, string selector, string key)
+    private static void Key(IRenderedComponent<LocalePicker> cut, string selector, string key)
         => cut.Find(selector).KeyDown(new KeyboardEventArgs { Key = key });
 
     // =================================================================
@@ -47,10 +47,10 @@ public class LocaleChooserTests : TestContext
     {
         var cut = RenderDefault();
 
-        Assert.NotNull(cut.Find("div.locale-chooser"));
+        Assert.NotNull(cut.Find("div.locale-picker"));
         Assert.Empty(cut.FindAll("select"));
 
-        var button = cut.Find("button.locale-chooser-button");
+        var button = cut.Find("button.locale-picker-button");
         Assert.Equal("button", button.GetAttribute("type"));
         Assert.Equal("listbox", button.GetAttribute("aria-haspopup"));
         Assert.Equal("false", button.GetAttribute("aria-expanded"));
@@ -58,7 +58,7 @@ public class LocaleChooserTests : TestContext
         var listId = button.GetAttribute("aria-controls");
         Assert.False(string.IsNullOrEmpty(listId));
 
-        var list = cut.Find("ul.locale-chooser-list");
+        var list = cut.Find("ul.locale-picker-list");
         Assert.Equal(listId, list.GetAttribute("id"));
         Assert.Equal("listbox", list.GetAttribute("role"));
         Assert.Equal("-1", list.GetAttribute("tabindex"));
@@ -73,13 +73,13 @@ public class LocaleChooserTests : TestContext
     {
         var cut = RenderDefault();
 
-        var icon = cut.Find(".locale-chooser-icon");
+        var icon = cut.Find(".locale-picker-icon");
         // U+1F310 GLOBE WITH MERIDIANS (&#127760;) + U+FE0E VARIATION
         // SELECTOR-15 (&#65038;), which forces the monochrome text
-        // presentation so the globe matches ThemeChooser's ◑.
+        // presentation so the globe matches ThemePicker's ◑.
         Assert.Equal("\U0001F310︎", icon.TextContent.Trim());
         Assert.Equal("true", icon.GetAttribute("aria-hidden"));
-        Assert.Equal("\U0001F310︎", LocaleChooser.GlobeWithMeridians);
+        Assert.Equal("\U0001F310︎", LocalePicker.GlobeWithMeridians);
     }
 
     // -----------------------------------------------------------------
@@ -88,7 +88,7 @@ public class LocaleChooserTests : TestContext
     [Fact]
     public void Section_7_3_AriaLabel_Names_Button_And_Listbox()
     {
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Choose language")
             .Add(x => x.Locales, LocalesList));
 
@@ -103,13 +103,13 @@ public class LocaleChooserTests : TestContext
     [Fact]
     public async Task Section_7_4_One_Option_Per_Locale_Hidden_Input_Carries_Name_And_Value()
     {
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, LocalesList)
             .Add(x => x.Name, "lang"));
         await Task.Yield();
 
-        var options = cut.FindAll("li.locale-chooser-option");
+        var options = cut.FindAll("li.locale-picker-option");
         Assert.Equal(LocalesList.Length, options.Count);
         foreach (var option in options)
         {
@@ -128,11 +128,11 @@ public class LocaleChooserTests : TestContext
     [Fact]
     public void Section_7_5_Option_Lang_Is_Bcp47_Hyphen()
     {
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, new[] { "en", "en_US", "zh_Hant_TW" }));
 
-        var options = cut.FindAll(".locale-chooser-option");
+        var options = cut.FindAll(".locale-picker-option");
         Assert.Equal("en", options[0].GetAttribute("lang"));
         Assert.Equal("en-US", options[1].GetAttribute("lang"));
         Assert.Equal("zh-Hant-TW", options[2].GetAttribute("lang"));
@@ -191,7 +191,7 @@ public class LocaleChooserTests : TestContext
     [Fact]
     public void Section_7_8_Default_Labels_With_Fallback()
     {
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, new[] { "en", "fr" })
             .Add(x => x.LocaleLabels,
@@ -203,7 +203,7 @@ public class LocaleChooserTests : TestContext
         Assert.Contains("English", cut.Markup);
         Assert.Contains("Français", cut.Markup);
 
-        var cut2 = RenderComponent<LocaleChooser>(p => p
+        var cut2 = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, new[] { "en_US" }));
         Assert.Contains("English (United States)", cut2.Markup);
@@ -222,7 +222,7 @@ public class LocaleChooserTests : TestContext
         var aList = a.Find("ul").GetAttribute("id")!;
         var bList = b.Find("ul").GetAttribute("id")!;
         Assert.NotEqual(aList, bList);
-        Assert.StartsWith("locale-chooser-", aList);
+        Assert.StartsWith("locale-picker-", aList);
 
         a.Find("button").Click();
         Assert.Equal(aList, a.Find("ul").GetAttribute("id"));
@@ -332,7 +332,7 @@ public class LocaleChooserTests : TestContext
     {
         var changed = "";
         var valueChanged = "";
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, LocalesList)
             .Add(x => x.OnChange, EventCallback.Factory.Create<string>(this, v => changed = v))
@@ -380,7 +380,7 @@ public class LocaleChooserTests : TestContext
     public async Task Section_7_15_Escape_Closes_Without_Changing_The_Value()
     {
         var changed = "";
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, LocalesList)
             .Add(x => x.OnChange, EventCallback.Factory.Create<string>(this, v => changed = v)));
@@ -404,7 +404,7 @@ public class LocaleChooserTests : TestContext
     [Fact]
     public async Task Section_7_16_Typeahead_Moves_The_Active_Option_By_Label_Prefix()
     {
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, LocalesList)
             .Add(x => x.LocaleLabels,
@@ -438,7 +438,7 @@ public class LocaleChooserTests : TestContext
     public async Task Section_7_17_Clicking_An_Option_Selects_And_Closes()
     {
         var valueChanged = "";
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, LocalesList)
             .Add(x => x.ValueChanged,
@@ -471,8 +471,8 @@ public class LocaleChooserTests : TestContext
         // A browser emits one focusout for the component's own button →
         // listbox move; that one is swallowed. The next one is a real
         // departure and closes the control.
-        cut.Find("div.locale-chooser").FocusOut();
-        cut.Find("div.locale-chooser").FocusOut();
+        cut.Find("div.locale-picker").FocusOut();
+        cut.Find("div.locale-picker").FocusOut();
 
         Assert.True(cut.Find("ul").HasAttribute("hidden"));
         Assert.Equal("en", cut.Find("input[type='hidden']").GetAttribute("value"));
@@ -520,9 +520,9 @@ public class LocaleChooserTests : TestContext
     public void Section_7_23_Apply_Script_Sets_Lang_To_Bcp47_Tag()
     {
         Assert.Contains("setAttribute('lang',\"en-US\")",
-            LocaleChooser.BuildApplyScript("en_US", applyDir: true, storageKey: null));
+            LocalePicker.BuildApplyScript("en_US", applyDir: true, storageKey: null));
         Assert.Contains("setAttribute('lang',\"zh-Hant-TW\")",
-            LocaleChooser.BuildApplyScript("zh_Hant_TW", applyDir: true, storageKey: null));
+            LocalePicker.BuildApplyScript("zh_Hant_TW", applyDir: true, storageKey: null));
     }
 
     // §7.24 — Apply-script sets dir from RTL detection, and omits the dir
@@ -531,11 +531,11 @@ public class LocaleChooserTests : TestContext
     public void Section_7_24_Apply_Script_Dir_Handling()
     {
         Assert.Contains("setAttribute('dir',\"rtl\")",
-            LocaleChooser.BuildApplyScript("ar", applyDir: true, storageKey: null));
+            LocalePicker.BuildApplyScript("ar", applyDir: true, storageKey: null));
         Assert.Contains("setAttribute('dir',\"ltr\")",
-            LocaleChooser.BuildApplyScript("en", applyDir: true, storageKey: null));
+            LocalePicker.BuildApplyScript("en", applyDir: true, storageKey: null));
 
-        var noDir = LocaleChooser.BuildApplyScript("ar", applyDir: false, storageKey: null);
+        var noDir = LocalePicker.BuildApplyScript("ar", applyDir: false, storageKey: null);
         Assert.DoesNotContain("setAttribute('dir'", noDir);
         Assert.Contains("setAttribute('lang',\"ar\")", noDir);
     }
@@ -545,9 +545,9 @@ public class LocaleChooserTests : TestContext
     public void Section_7_25_StorageKey_Embedded_In_Apply_Script()
     {
         Assert.Contains("localStorage.setItem(\"lily-locale\",\"fr\")",
-            LocaleChooser.BuildApplyScript("fr", applyDir: true, storageKey: "lily-locale"));
+            LocalePicker.BuildApplyScript("fr", applyDir: true, storageKey: "lily-locale"));
         Assert.DoesNotContain("localStorage.setItem",
-            LocaleChooser.BuildApplyScript("fr", applyDir: true, storageKey: null));
+            LocalePicker.BuildApplyScript("fr", applyDir: true, storageKey: null));
     }
 
     // §7.26 — Navigator detection: exact match, then language-only fallback.
@@ -572,7 +572,7 @@ public class LocaleChooserTests : TestContext
     [Fact]
     public async Task Section_7_27_Explicit_Value_Wins()
     {
-        RenderComponent<LocaleChooser>(p => p
+        RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, LocalesList)
             .Add(x => x.Value, "fr_CA")
@@ -590,12 +590,12 @@ public class LocaleChooserTests : TestContext
     [Fact]
     public void Section_7_28_AdditionalAttributes_Spread_Onto_The_Root()
     {
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, LocalesList)
             .AddUnmatched("data-testid", "ls"));
 
-        Assert.Equal("ls", cut.Find("div.locale-chooser").GetAttribute("data-testid"));
+        Assert.Equal("ls", cut.Find("div.locale-picker").GetAttribute("data-testid"));
     }
 
     // -----------------------------------------------------------------
@@ -605,7 +605,7 @@ public class LocaleChooserTests : TestContext
     [Fact]
     public async Task Section_7_29_ChildContent_Replaces_The_Glyph_And_Receives_Context()
     {
-        RenderFragment<LocaleChooserContext> custom = ctx => builder =>
+        RenderFragment<LocalePickerContext> custom = ctx => builder =>
         {
             builder.OpenElement(0, "span");
             builder.AddAttribute(1, "data-testid", "custom");
@@ -615,17 +615,17 @@ public class LocaleChooserTests : TestContext
             builder.CloseElement();
         };
 
-        var cut = RenderComponent<LocaleChooser>(p => p
+        var cut = RenderComponent<LocalePicker>(p => p
             .Add(x => x.Label, "Language")
             .Add(x => x.Locales, LocalesList)
             .Add(x => x.ChildContent, custom));
         await Task.Yield();
 
         // The default glyph is replaced, not supplemented.
-        Assert.Empty(cut.FindAll(".locale-chooser-icon"));
+        Assert.Empty(cut.FindAll(".locale-picker-icon"));
 
         var fragment = cut.Find("[data-testid='custom']");
-        Assert.Contains("locale-chooser-button",
+        Assert.Contains("locale-picker-button",
             fragment.ParentElement?.GetAttribute("class") ?? "");
         Assert.Equal("False", fragment.GetAttribute("data-open"));
         Assert.Equal("English", fragment.GetAttribute("data-label"));

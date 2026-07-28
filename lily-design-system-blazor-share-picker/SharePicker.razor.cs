@@ -1,4 +1,4 @@
-// ShareChooser — code-behind. See spec/index.md for the contract.
+// SharePicker — code-behind. See spec/index.md for the contract.
 
 using System;
 using System.Collections.Generic;
@@ -83,7 +83,7 @@ public sealed class ShareEventArgs
 /// fragment replaces the default glyph inside the button; it does not render
 /// list items. See <c>spec/index.md §4.1</c>.
 /// </summary>
-public sealed class ShareChooserContext
+public sealed class SharePickerContext
 {
     /// <summary>Is the list open?</summary>
     public required bool Open { get; init; }
@@ -92,14 +92,14 @@ public sealed class ShareChooserContext
     public required string Url { get; init; }
 }
 
-public partial class ShareChooser : ComponentBase
+public partial class SharePicker : ComponentBase
 {
     /// <summary>Default button glyph: U+27A4 BLACK RIGHTWARDS ARROWHEAD.</summary>
     /// <remarks>
     /// An in-font arrow rather than a pictograph, matching the other helpers'
     /// rule: it renders in the page's own font on every platform and stays
-    /// monochrome alongside ThemeChooser's ◑, LocaleChooser's 🌐 and
-    /// TextSizeChooser's "A".
+    /// monochrome alongside ThemePicker's ◑, LocalePicker's 🌐 and
+    /// TextSizePicker's "A".
     /// </remarks>
     public const string BlackRightwardsArrowhead = "\u27A4";
 
@@ -144,7 +144,7 @@ public partial class ShareChooser : ComponentBase
     [Parameter] public ShareStrategy Strategy { get; set; } = ShareStrategy.Auto;
 
     /// <summary>Replaces the default ➤ glyph inside the button.</summary>
-    [Parameter] public RenderFragment<ShareChooserContext>? ChildContent { get; set; }
+    [Parameter] public RenderFragment<SharePickerContext>? ChildContent { get; set; }
 
     /// <summary>Fires after a destination is chosen.</summary>
     [Parameter] public EventCallback<ShareEventArgs> OnShare { get; set; }
@@ -170,7 +170,7 @@ public partial class ShareChooser : ComponentBase
     // Instance state.
     // -------------------------------------------------------------------
 
-    private readonly string _baseId = NextShareChooserId();
+    private readonly string _baseId = NextSharePickerId();
 
     private bool _open;
     private string _status = "";
@@ -206,14 +206,14 @@ public partial class ShareChooser : ComponentBase
 
     private string ListId => $"{_baseId}-list";
 
-    private string RootClass => $"share-chooser {CssClass}".Trim();
+    private string RootClass => $"share-picker {CssClass}".Trim();
 
     private bool HasCopy => !string.IsNullOrEmpty(CopyLabel);
 
     /// <summary>Focusable items in the list: destinations, then copy.</summary>
     private int ItemCount => Targets.Count + (HasCopy ? 1 : 0);
 
-    private ShareChooserContext BuildContext() => new()
+    private SharePickerContext BuildContext() => new()
     {
         Open = _open,
         Url = CurrentUrl(),
@@ -224,8 +224,8 @@ public partial class ShareChooser : ComponentBase
     // -------------------------------------------------------------------
 
     /// <summary>Mint a stable per-instance id prefix; SSR-safe.</summary>
-    public static string NextShareChooserId()
-        => $"share-chooser-{Interlocked.Increment(ref _uid)}";
+    public static string NextSharePickerId()
+        => $"share-picker-{Interlocked.Increment(ref _uid)}";
 
     /// <summary>
     /// Is a native share sheet available? Asynchronous because the browser is

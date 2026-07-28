@@ -1,4 +1,4 @@
-// ThemeChooser tests — one [Fact] per spec/index.md §7 acceptance criterion.
+// ThemePicker tests — one [Fact] per spec/index.md §7 acceptance criterion.
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -11,13 +11,13 @@ using Xunit;
 
 namespace LilyDesignSystem.Blazor.Helpers.Tests;
 
-public class ThemeChooserTests : TestContext
+public class ThemePickerTests : TestContext
 {
     private static readonly string[] Themes = { "light", "dark", "abyss" };
     private const string UrlTrailing = "/assets/themes/";
     private const string UrlNoTrailing = "/assets/themes";
 
-    public ThemeChooserTests()
+    public ThemePickerTests()
     {
         // bUnit JSInterop defaults to Strict; relax so the eval call and the
         // FocusAsync interop do not throw during render. Tests inspect
@@ -27,13 +27,13 @@ public class ThemeChooserTests : TestContext
         JSInterop.Setup<string?>("eval", _ => true).SetResult(null);
     }
 
-    private IRenderedComponent<ThemeChooser> RenderDefault()
-        => RenderComponent<ThemeChooser>(p => p
+    private IRenderedComponent<ThemePicker> RenderDefault()
+        => RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes));
 
-    private static void Key(IRenderedComponent<ThemeChooser> cut, string selector, string key)
+    private static void Key(IRenderedComponent<ThemePicker> cut, string selector, string key)
         => cut.Find(selector).KeyDown(new KeyboardEventArgs { Key = key });
 
     // =================================================================
@@ -49,11 +49,11 @@ public class ThemeChooserTests : TestContext
     {
         var cut = RenderDefault();
 
-        var root = cut.Find("div.theme-chooser");
+        var root = cut.Find("div.theme-picker");
         Assert.NotNull(root);
         Assert.Empty(cut.FindAll("select"));
 
-        var button = cut.Find("button.theme-chooser-button");
+        var button = cut.Find("button.theme-picker-button");
         Assert.Equal("button", button.GetAttribute("type"));
         Assert.Equal("listbox", button.GetAttribute("aria-haspopup"));
         Assert.Equal("false", button.GetAttribute("aria-expanded"));
@@ -61,7 +61,7 @@ public class ThemeChooserTests : TestContext
         var listId = button.GetAttribute("aria-controls");
         Assert.False(string.IsNullOrEmpty(listId));
 
-        var list = cut.Find("ul.theme-chooser-list");
+        var list = cut.Find("ul.theme-picker-list");
         Assert.Equal(listId, list.GetAttribute("id"));
         Assert.Equal("listbox", list.GetAttribute("role"));
         Assert.Equal("-1", list.GetAttribute("tabindex"));
@@ -76,11 +76,11 @@ public class ThemeChooserTests : TestContext
     {
         var cut = RenderDefault();
 
-        var icon = cut.Find(".theme-chooser-icon");
+        var icon = cut.Find(".theme-picker-icon");
         // U+25D1 CIRCLE WITH RIGHT HALF BLACK, decimal &#9681;
         Assert.Equal("\u25D1", icon.TextContent.Trim());
         Assert.Equal("true", icon.GetAttribute("aria-hidden"));
-        Assert.Equal("\u25D1", ThemeChooser.CircleWithRightHalfBlack);
+        Assert.Equal("\u25D1", ThemePicker.CircleWithRightHalfBlack);
     }
 
     // -----------------------------------------------------------------
@@ -89,7 +89,7 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public void Section_7_3_AriaLabel_Names_Button_And_Listbox()
     {
-        var cut = RenderComponent<ThemeChooser>(p => p
+        var cut = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Choose theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes));
@@ -105,14 +105,14 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public async Task Section_7_4_One_Option_Per_Theme_Hidden_Input_Carries_Name_And_Value()
     {
-        var cut = RenderComponent<ThemeChooser>(p => p
+        var cut = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
             .Add(x => x.Name, "appearance"));
         await Task.Yield();
 
-        var options = cut.FindAll("li.theme-chooser-option");
+        var options = cut.FindAll("li.theme-picker-option");
         Assert.Equal(Themes.Length, options.Count);
         foreach (var option in options)
         {
@@ -180,12 +180,12 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public void Section_7_7_Default_Labels_TitleCase_And_Overrideable()
     {
-        var cut = RenderComponent<ThemeChooser>(p => p
+        var cut = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, new[] { "light", "dark" }));
 
-        var labels = cut.FindAll("li.theme-chooser-option")
+        var labels = cut.FindAll("li.theme-picker-option")
             .Select(li => li.TextContent.Trim()).ToList();
         Assert.Equal(new[] { "Light", "Dark" }, labels);
         // The word "default" is never emitted as a user-facing label.
@@ -196,7 +196,7 @@ public class ThemeChooserTests : TestContext
             Assert.DoesNotContain("default", label, System.StringComparison.OrdinalIgnoreCase);
         }
 
-        var cut2 = RenderComponent<ThemeChooser>(p => p
+        var cut2 = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, new[] { "light", "dark" })
@@ -223,7 +223,7 @@ public class ThemeChooserTests : TestContext
         var aList = a.Find("ul").GetAttribute("id")!;
         var bList = b.Find("ul").GetAttribute("id")!;
         Assert.NotEqual(aList, bList);
-        Assert.StartsWith("theme-chooser-", aList);
+        Assert.StartsWith("theme-picker-", aList);
 
         // Stable across re-render.
         a.Find("button").Click();
@@ -337,7 +337,7 @@ public class ThemeChooserTests : TestContext
     public async Task Section_7_13_Enter_Selects_The_Active_Option_Applies_And_Closes()
     {
         var changed = "";
-        var cut = RenderComponent<ThemeChooser>(p => p
+        var cut = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -380,7 +380,7 @@ public class ThemeChooserTests : TestContext
     public async Task Section_7_14_Escape_Closes_Without_Changing_The_Value()
     {
         var changed = "";
-        var cut = RenderComponent<ThemeChooser>(p => p
+        var cut = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -428,7 +428,7 @@ public class ThemeChooserTests : TestContext
     public async Task Section_7_16_Clicking_An_Option_Selects_And_Closes()
     {
         var valueChanged = "";
-        var cut = RenderComponent<ThemeChooser>(p => p
+        var cut = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -462,8 +462,8 @@ public class ThemeChooserTests : TestContext
         // A browser emits one focusout for the component's own button →
         // listbox move; that one is swallowed. The next one is a real
         // departure and closes the control.
-        cut.Find("div.theme-chooser").FocusOut();
-        cut.Find("div.theme-chooser").FocusOut();
+        cut.Find("div.theme-picker").FocusOut();
+        cut.Find("div.theme-picker").FocusOut();
 
         Assert.True(cut.Find("ul").HasAttribute("hidden"));
         Assert.Equal("light", cut.Find("input[type='hidden']").GetAttribute("value"));
@@ -481,7 +481,7 @@ public class ThemeChooserTests : TestContext
     public async Task Section_7_18_Initial_Value_Resolves_To_Light_Or_First()
     {
         var observed = "";
-        RenderComponent<ThemeChooser>(p => p
+        RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -491,7 +491,7 @@ public class ThemeChooserTests : TestContext
         Assert.Equal("light", observed);
 
         var observed2 = "";
-        RenderComponent<ThemeChooser>(p => p
+        RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, new[] { "dark", "abyss" })
@@ -519,14 +519,14 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public async Task Section_7_20_StorageKey_Embedded_In_Apply_Script()
     {
-        var script = ThemeChooser.BuildApplyScript("theme", "/assets/themes/dark.css", "dark", "lily-theme");
+        var script = ThemePicker.BuildApplyScript("theme", "/assets/themes/dark.css", "dark", "lily-theme");
         Assert.Contains("localStorage.setItem(\"lily-theme\"", script);
         Assert.Contains("\"dark\"", script);
 
-        var noKey = ThemeChooser.BuildApplyScript("theme", "/assets/themes/dark.css", "dark", null);
+        var noKey = ThemePicker.BuildApplyScript("theme", "/assets/themes/dark.css", "dark", null);
         Assert.DoesNotContain("localStorage.setItem", noKey);
 
-        RenderComponent<ThemeChooser>(p => p
+        RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -543,8 +543,8 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public void Section_7_20_Managed_Link_Is_Discriminated_By_Name()
     {
-        var script = ThemeChooser.BuildApplyScript("appearance", "/a/dark.css", "dark", null);
-        Assert.Contains("data-lily-theme-chooser", script);
+        var script = ThemePicker.BuildApplyScript("appearance", "/a/dark.css", "dark", null);
+        Assert.Contains("data-lily-theme-picker", script);
         Assert.Contains("\"appearance\"", script);
     }
 
@@ -554,7 +554,7 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public async Task Section_7_21_Explicit_Value_Wins()
     {
-        RenderComponent<ThemeChooser>(p => p
+        RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -575,24 +575,24 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public void Section_7_21_ThemeName_Is_The_Shared_Public_Label_Rule()
     {
-        Assert.Equal("High Contrast", ThemeChooser.ThemeName("high-contrast"));
-        Assert.Equal("Light", ThemeChooser.ThemeName("light"));
+        Assert.Equal("High Contrast", ThemePicker.ThemeName("high-contrast"));
+        Assert.Equal("Light", ThemePicker.ThemeName("light"));
         Assert.Equal(
             "United Kingdom National Health Service England For Patients",
-            ThemeChooser.ThemeName("united-kingdom-national-health-service-england-for-patients"));
-        Assert.Equal("", ThemeChooser.ThemeName(""));
+            ThemePicker.ThemeName("united-kingdom-national-health-service-england-for-patients"));
+        Assert.Equal("", ThemePicker.ThemeName(""));
 
         // The rendered option labels come from the very same function, so
         // consumers can reproduce them without duplicating the rule.
-        var cut = RenderComponent<ThemeChooser>(p => p
+        var cut = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, new[] { "high-contrast", "dark" }));
 
-        var labels = cut.FindAll("li.theme-chooser-option")
+        var labels = cut.FindAll("li.theme-picker-option")
             .Select(li => li.TextContent.Trim()).ToList();
         Assert.Equal(
-            new[] { ThemeChooser.ThemeName("high-contrast"), ThemeChooser.ThemeName("dark") },
+            new[] { ThemePicker.ThemeName("high-contrast"), ThemePicker.ThemeName("dark") },
             labels);
     }
 
@@ -608,18 +608,18 @@ public class ThemeChooserTests : TestContext
     public void Section_7_25_MatchSystemTheme_Resolves_Dark_Light_And_Guards()
     {
         // Resolves dark.
-        Assert.Equal("dark", ThemeChooser.MatchSystemTheme(true, Themes));
+        Assert.Equal("dark", ThemePicker.MatchSystemTheme(true, Themes));
         // Resolves light.
-        Assert.Equal("light", ThemeChooser.MatchSystemTheme(false, Themes));
+        Assert.Equal("light", ThemePicker.MatchSystemTheme(false, Themes));
 
         // Returns "" when the preferred slug is not among the themes.
-        Assert.Equal("", ThemeChooser.MatchSystemTheme(true, new[] { "light", "sepia" }));
-        Assert.Equal("", ThemeChooser.MatchSystemTheme(false, new[] { "dark", "abyss" }));
-        Assert.Equal("", ThemeChooser.MatchSystemTheme(true, System.Array.Empty<string>()));
+        Assert.Equal("", ThemePicker.MatchSystemTheme(true, new[] { "light", "sepia" }));
+        Assert.Equal("", ThemePicker.MatchSystemTheme(false, new[] { "dark", "abyss" }));
+        Assert.Equal("", ThemePicker.MatchSystemTheme(true, System.Array.Empty<string>()));
 
         // Returns "" when matchMedia is unavailable (null probe result:
         // prerender / static SSR / host without the API).
-        Assert.Equal("", ThemeChooser.MatchSystemTheme(null, Themes));
+        Assert.Equal("", ThemePicker.MatchSystemTheme(null, Themes));
     }
 
     // -----------------------------------------------------------------
@@ -633,7 +633,7 @@ public class ThemeChooserTests : TestContext
         JSInterop.Setup<bool?>("eval", _ => true).SetResult(true);
 
         var observed = "";
-        RenderComponent<ThemeChooser>(p => p
+        RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -656,7 +656,7 @@ public class ThemeChooserTests : TestContext
         JSInterop.Setup<bool?>("eval", _ => true).SetResult(true);
 
         var observed = "";
-        RenderComponent<ThemeChooser>(p => p
+        RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -681,7 +681,7 @@ public class ThemeChooserTests : TestContext
         JSInterop.Setup<bool?>("eval", _ => true).SetResult(true);
 
         var observed = "";
-        RenderComponent<ThemeChooser>(p => p
+        RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -701,7 +701,7 @@ public class ThemeChooserTests : TestContext
     {
         JSInterop.Setup<bool?>("eval", _ => true).SetResult(true);
 
-        RenderComponent<ThemeChooser>(p => p
+        RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -719,10 +719,10 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public void Section_7_22_Url_Normalisation()
     {
-        Assert.Equal("/assets/themes/", ThemeChooser.NormaliseThemesUrl(UrlTrailing));
-        Assert.Equal("/assets/themes/", ThemeChooser.NormaliseThemesUrl(UrlNoTrailing));
-        Assert.Equal("/a/light.css", ThemeChooser.ThemeHref("/a", "light", ".css"));
-        Assert.Equal("/a/light.css", ThemeChooser.ThemeHref("/a/", "light", ".css"));
+        Assert.Equal("/assets/themes/", ThemePicker.NormaliseThemesUrl(UrlTrailing));
+        Assert.Equal("/assets/themes/", ThemePicker.NormaliseThemesUrl(UrlNoTrailing));
+        Assert.Equal("/a/light.css", ThemePicker.ThemeHref("/a", "light", ".css"));
+        Assert.Equal("/a/light.css", ThemePicker.ThemeHref("/a/", "light", ".css"));
     }
 
     // =================================================================
@@ -735,13 +735,13 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public void Section_7_23_AdditionalAttributes_Spread_Onto_The_Root()
     {
-        var cut = RenderComponent<ThemeChooser>(p => p
+        var cut = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
             .AddUnmatched("data-testid", "ts"));
 
-        Assert.Equal("ts", cut.Find("div.theme-chooser").GetAttribute("data-testid"));
+        Assert.Equal("ts", cut.Find("div.theme-picker").GetAttribute("data-testid"));
     }
 
     // -----------------------------------------------------------------
@@ -751,7 +751,7 @@ public class ThemeChooserTests : TestContext
     [Fact]
     public async Task Section_7_24_ChildContent_Replaces_The_Glyph_And_Receives_Context()
     {
-        RenderFragment<ThemeChooserContext> custom = ctx => builder =>
+        RenderFragment<ThemePickerContext> custom = ctx => builder =>
         {
             builder.OpenElement(0, "span");
             builder.AddAttribute(1, "data-testid", "custom");
@@ -761,7 +761,7 @@ public class ThemeChooserTests : TestContext
             builder.CloseElement();
         };
 
-        var cut = RenderComponent<ThemeChooser>(p => p
+        var cut = RenderComponent<ThemePicker>(p => p
             .Add(x => x.Label, "Theme")
             .Add(x => x.ThemesUrl, UrlTrailing)
             .Add(x => x.Themes, Themes)
@@ -769,10 +769,10 @@ public class ThemeChooserTests : TestContext
         await Task.Yield();
 
         // The default glyph is replaced, not supplemented.
-        Assert.Empty(cut.FindAll(".theme-chooser-icon"));
+        Assert.Empty(cut.FindAll(".theme-picker-icon"));
 
         var custom_ = cut.Find("[data-testid='custom']");
-        Assert.Contains("theme-chooser-button",
+        Assert.Contains("theme-picker-button",
             custom_.ParentElement?.GetAttribute("class") ?? "");
         Assert.Equal("False", custom_.GetAttribute("data-open"));
         Assert.Equal("Light", custom_.GetAttribute("data-label"));

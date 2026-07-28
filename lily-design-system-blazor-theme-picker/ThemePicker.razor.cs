@@ -1,7 +1,8 @@
-// LocaleChooser — code-behind. See spec/index.md for the contract.
+// ThemePicker — code-behind. See spec/index.md for the contract.
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
@@ -13,30 +14,24 @@ namespace LilyDesignSystem.Blazor.Helpers;
 /// <summary>
 /// Context passed to a custom <c>ChildContent</c> render fragment. The
 /// fragment replaces the default glyph inside the button; it does not
-/// render options. See <c>spec/index.md §4.2</c>.
+/// render options. See <c>spec/index.md §4.1</c>.
 /// </summary>
-public sealed class LocaleChooserContext
+public sealed class ThemePickerContext
 {
-    /// <summary>Currently selected locale code (consumer form, not BCP 47).</summary>
+    /// <summary>Currently selected theme slug.</summary>
     public required string Value { get; init; }
 
     /// <summary>Is the listbox open?</summary>
     public required bool Open { get; init; }
 
-    /// <summary>Resolve a locale code to its display label.</summary>
+    /// <summary>Resolve a slug to its display label.</summary>
     public required Func<string, string> LabelFor { get; init; }
 }
 
-public partial class LocaleChooser : ComponentBase
+public partial class ThemePicker : ComponentBase
 {
-    /// <summary>
-    /// Default button glyph: U+1F310 GLOBE WITH MERIDIANS followed by
-    /// U+FE0E VARIATION SELECTOR-15. VS15 requests the *text*
-    /// presentation, so the globe renders monochrome and matches
-    /// ThemeChooser's U+25D1. Without it browsers pick the colour-emoji
-    /// font and the globe comes out blue.
-    /// </summary>
-    public const string GlobeWithMeridians = "\U0001F310\uFE0E";
+    /// <summary>Default button glyph: U+25D1 CIRCLE WITH RIGHT HALF BLACK.</summary>
+    public const string CircleWithRightHalfBlack = "\u25D1";
 
     /// <summary>Typeahead buffer lifetime, per the APG listbox pattern.</summary>
     private static readonly TimeSpan TypeaheadWindow = TimeSpan.FromMilliseconds(500);
@@ -51,38 +46,43 @@ public partial class LocaleChooser : ComponentBase
     /// <summary>Accessible name for the button and the listbox. Required.</summary>
     [Parameter, EditorRequired] public string Label { get; set; } = "";
 
-    /// <summary>Available locale codes.</summary>
-    [Parameter, EditorRequired] public IReadOnlyList<string> Locales { get; set; } = Array.Empty<string>();
+    /// <summary>Base URL of the themes directory, e.g. "/assets/themes/".</summary>
+    [Parameter, EditorRequired] public string ThemesUrl { get; set; } = "";
 
-    /// <summary>Currently selected locale code. Bindable via <c>@bind-Value</c>.</summary>
+    /// <summary>Available theme slugs.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<string> Themes { get; set; } = Array.Empty<string>();
+
+    /// <summary>Currently selected theme slug. Bindable via <c>@bind-Value</c>.</summary>
     [Parameter] public string Value { get; set; } = "";
 
     /// <summary>Two-way binding callback for <see cref="Value"/>.</summary>
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
 
-    /// <summary>Initial locale when nothing else is supplied.</summary>
+    /// <summary>Initial theme when nothing else is supplied.</summary>
     [Parameter] public string? DefaultValue { get; set; }
 
-    /// <summary>If set, persist the selection to <c>localStorage</c>.</summary>
+    /// <summary>If set, persist the selection to <c>localStorage</c> under this key.</summary>
     [Parameter] public string? StorageKey { get; set; }
 
-    /// <summary>Resolve <c>navigator.languages</c> on first visit.</summary>
-    [Parameter] public bool DetectFromNavigator { get; set; }
+    /// <summary>Resolve <c>prefers-color-scheme</c> to a supported theme on
+    /// first visit. Mirrors <c>DetectFromNavigator</c> on LocalePicker.</summary>
+    [Parameter] public bool DetectFromSystem { get; set; }
 
-    /// <summary><c>name</c> attribute of the hidden input that carries the value.</summary>
-    [Parameter] public string Name { get; set; } = "locale";
+    /// <summary>Shared <c>name</c> attribute for the hidden input and the
+    /// <c>data-lily-theme-picker</c> discriminator on the managed <c>&lt;link&gt;</c>.</summary>
+    [Parameter] public string Name { get; set; } = "theme";
 
-    /// <summary>If false, the control only writes <c>lang</c> and never touches <c>dir</c>.</summary>
-    [Parameter] public bool ApplyDir { get; set; } = true;
+    /// <summary>File extension appended to each slug when constructing the URL.</summary>
+    [Parameter] public string Extension { get; set; } = ".css";
 
-    /// <summary>Optional pretty labels per locale code.</summary>
-    [Parameter] public IReadOnlyDictionary<string, string> LocaleLabels { get; set; }
+    /// <summary>Optional pretty labels per slug.</summary>
+    [Parameter] public IReadOnlyDictionary<string, string> ThemeLabels { get; set; }
         = new Dictionary<string, string>();
 
-    /// <summary>Replaces the default globe glyph inside the button.</summary>
-    [Parameter] public RenderFragment<LocaleChooserContext>? ChildContent { get; set; }
+    /// <summary>Replaces the default half-circle glyph inside the button.</summary>
+    [Parameter] public RenderFragment<ThemePickerContext>? ChildContent { get; set; }
 
-    /// <summary>Called after the control applies a new locale (consumer-form code, not BCP 47).</summary>
+    /// <summary>Called after the control applies a new theme.</summary>
     [Parameter] public EventCallback<string> OnChange { get; set; }
 
     /// <summary>Extra CSS class merged into the root &lt;div&gt;.</summary>
@@ -98,7 +98,7 @@ public partial class LocaleChooser : ComponentBase
     // Instance state.
     // -------------------------------------------------------------------
 
-    private readonly string _baseId = $"locale-chooser-{Interlocked.Increment(ref _uid)}";
+    private readonly string _baseId = $"theme-picker-{Interlocked.Increment(ref _uid)}";
 
     private bool _initialised;
     private bool _open;
@@ -131,22 +131,75 @@ public partial class LocaleChooser : ComponentBase
 
     /// <summary>Only advertised while open and pointing at a real option.</summary>
     private string? ActiveDescendantId
-        => _open && _activeIndex >= 0 && _activeIndex < Locales.Count
+        => _open && _activeIndex >= 0 && _activeIndex < Themes.Count
             ? OptionId(_activeIndex)
             : null;
 
-    private string RootClass => $"locale-chooser {CssClass}".Trim();
+    private string RootClass => $"theme-picker {CssClass}".Trim();
 
-    internal string LabelFor(string locale)
+    // -------------------------------------------------------------------
+    // Helpers — exposed for tests and consumers.
+    // -------------------------------------------------------------------
+
+    /// <summary>Normalise the themes directory URL to end with exactly one "/".</summary>
+    public static string NormaliseThemesUrl(string themesUrl)
+        => themesUrl.EndsWith('/') ? themesUrl : themesUrl + "/";
+
+    /// <summary>Construct the href for a given theme slug.</summary>
+    public static string ThemeHref(string themesUrl, string slug, string extension)
+        => NormaliseThemesUrl(themesUrl) + slug + extension;
+
+    /// <summary>
+    /// Map an OS colour-scheme preference onto a supported theme slug.
+    /// Mirrors <c>Locales.MatchNavigatorLanguage</c>: the browser reading
+    /// happens in the interop probe, and this function is the pure,
+    /// separately-testable decision.
+    /// </summary>
+    /// <param name="prefersDark">
+    /// The result of <c>matchMedia("(prefers-color-scheme: dark)").matches</c>,
+    /// or <c>null</c> when <c>matchMedia</c> is unavailable — prerender /
+    /// static SSR, or a host without the API. Null always yields "".
+    /// </param>
+    /// <param name="themes">The supported theme slugs.</param>
+    /// <returns>"dark" / "light" when supported, otherwise "".</returns>
+    public static string MatchSystemTheme(bool? prefersDark, IReadOnlyList<string> themes)
     {
-        if (LocaleLabels.TryGetValue(locale, out var pretty)) return pretty;
-        if (Helpers.Locales.DefaultLocaleLabels.TryGetValue(locale, out var built)) return built;
-        return locale;
+        if (prefersDark is null) return "";
+        var wanted = prefersDark.Value ? "dark" : "light";
+        foreach (var theme in themes)
+        {
+            if (theme == wanted) return wanted;
+        }
+        return "";
     }
 
-    internal string TagFor(string locale) => Helpers.Locales.Bcp47LocaleTag(locale);
+    /// <summary>
+    /// Resolve a theme slug to its display label: each hyphen-separated
+    /// word title-cased, so a slug like
+    /// "united-kingdom-national-health-service-england-for-patients"
+    /// renders as "United Kingdom National Health Service England For
+    /// Patients". Mirrors <c>Locales.LocaleName</c> in LocalePicker.
+    /// </summary>
+    /// <remarks>
+    /// Public and pure, so consumers driving the control from their own
+    /// UI can render matching labels without duplicating the rule.
+    /// </remarks>
+    public static string ThemeName(string slug)
+    {
+        if (string.IsNullOrEmpty(slug)) return slug;
+        return string.Join(" ", slug.Split('-')
+            .Select(word => word.Length == 0 ? word : char.ToUpperInvariant(word[0]) + word[1..]));
+    }
 
-    private LocaleChooserContext BuildContext() => new()
+    /// <summary>Instance label resolution: consumer override first, then
+    /// the shared <see cref="ThemeName"/> rule.</summary>
+    private string LabelFor(string theme)
+    {
+        if (ThemeLabels.TryGetValue(theme, out var pretty)) return pretty;
+        return ThemeName(theme);
+    }
+
+    private ThemePickerContext BuildContext() => new()
     {
         Value = Value ?? "",
         Open = _open,
@@ -172,7 +225,7 @@ public partial class LocaleChooser : ComponentBase
                     await ValueChanged.InvokeAsync(Value);
                     StateHasChanged();
                 }
-                await ApplyLocaleAsync(initial);
+                await ApplyThemeAsync(initial);
             }
         }
 
@@ -212,36 +265,43 @@ public partial class LocaleChooser : ComponentBase
             {
                 var stored = await JS.InvokeAsync<string?>(
                     "eval",
-                    $"(function(){{try{{return localStorage.getItem({JsonString(StorageKey!)});}}catch(e){{return null;}}}})()");
+                    $"(function(){{try{{return localStorage.getItem({JsonString(StorageKey!)});}}catch(e){{return null;}}}})()"
+                );
                 if (!string.IsNullOrEmpty(stored)) return stored!;
             }
-            catch { /* prerender / interop unavailable */ }
+            catch
+            {
+                // ignore prerender / interop failure
+            }
         }
 
-        if (DetectFromNavigator)
+        if (DetectFromSystem)
         {
             try
             {
-                var langs = await JS.InvokeAsync<string[]?>(
+                // matchMedia is absent during prerender and in some hosts;
+                // the probe returns null there and MatchSystemTheme yields "".
+                var prefersDark = await JS.InvokeAsync<bool?>(
                     "eval",
-                    "(function(){try{if(navigator.languages&&navigator.languages.length>0)return Array.from(navigator.languages);if(navigator.language)return [navigator.language];return [];}catch(e){return [];}})()");
-                if (langs is not null)
-                {
-                    var match = Helpers.Locales.MatchNavigatorLanguage(langs, Locales);
-                    if (!string.IsNullOrEmpty(match)) return match;
-                }
+                    "(function(){try{if(typeof matchMedia!=='function')return null;"
+                    + "return matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){return null;}})()");
+                var match = MatchSystemTheme(prefersDark, Themes);
+                if (!string.IsNullOrEmpty(match)) return match;
             }
-            catch { /* prerender / interop unavailable */ }
+            catch
+            {
+                // ignore prerender / interop failure
+            }
         }
 
         if (!string.IsNullOrEmpty(DefaultValue)) return DefaultValue!;
-        if (Locales.Count == 0) return "";
+        if (Themes.Count == 0) return "";
 
-        foreach (var l in Locales)
+        foreach (var t in Themes)
         {
-            if (l == "en") return "en";
+            if (t == "light") return "light";
         }
-        return Locales[0];
+        return Themes[0];
     }
 
     // -------------------------------------------------------------------
@@ -252,7 +312,7 @@ public partial class LocaleChooser : ComponentBase
     /// one (or the first), unless <paramref name="startIndex"/> overrides it.</summary>
     private void OpenList(int? startIndex = null)
     {
-        if (Locales.Count == 0) return;
+        if (Themes.Count == 0) return;
         var selected = IndexOfValue();
         _activeIndex = startIndex ?? (selected >= 0 ? selected : 0);
         _open = true;
@@ -278,20 +338,20 @@ public partial class LocaleChooser : ComponentBase
 
     private int IndexOfValue()
     {
-        for (var i = 0; i < Locales.Count; i++)
+        for (var i = 0; i < Themes.Count; i++)
         {
-            if (Locales[i] == Value) return i;
+            if (Themes[i] == Value) return i;
         }
         return -1;
     }
 
     private async Task ChooseAsync(int index)
     {
-        if (index >= 0 && index < Locales.Count)
+        if (index >= 0 && index < Themes.Count)
         {
-            var code = Locales[index];
+            var slug = Themes[index];
             CloseList();
-            if (!string.IsNullOrEmpty(code)) await SetLocaleAsync(code);
+            if (!string.IsNullOrEmpty(slug)) await SetThemeAsync(slug);
             return;
         }
         CloseList();
@@ -299,9 +359,9 @@ public partial class LocaleChooser : ComponentBase
 
     private void MoveActive(int delta)
     {
-        if (Locales.Count == 0) return;
+        if (Themes.Count == 0) return;
         // Clamp; the APG listbox pattern does not wrap.
-        var next = Math.Min(Math.Max(_activeIndex + delta, 0), Locales.Count - 1);
+        var next = Math.Min(Math.Max(_activeIndex + delta, 0), Themes.Count - 1);
         _activeIndex = next;
     }
 
@@ -314,10 +374,10 @@ public partial class LocaleChooser : ComponentBase
 
         var from = _activeIndex < 0 ? 0 : _activeIndex;
         // Search forward from the active option, wrapping once.
-        for (var n = 0; n < Locales.Count; n++)
+        for (var n = 0; n < Themes.Count; n++)
         {
-            var i = (from + n) % Locales.Count;
-            if (LabelFor(Locales[i]).ToLowerInvariant().StartsWith(_typeahead, StringComparison.Ordinal))
+            var i = (from + n) % Themes.Count;
+            if (LabelFor(Themes[i]).ToLowerInvariant().StartsWith(_typeahead, StringComparison.Ordinal))
             {
                 _activeIndex = i;
                 return;
@@ -355,7 +415,7 @@ public partial class LocaleChooser : ComponentBase
                 break;
             case "ArrowUp":
                 _suppressNextClick = true;
-                OpenList(Locales.Count - 1);
+                OpenList(Themes.Count - 1);
                 break;
         }
         return Task.CompletedTask;
@@ -375,7 +435,7 @@ public partial class LocaleChooser : ComponentBase
                 _activeIndex = 0;
                 break;
             case "End":
-                _activeIndex = Locales.Count - 1;
+                _activeIndex = Themes.Count - 1;
                 break;
             case "Enter":
             case " ":
@@ -418,25 +478,26 @@ public partial class LocaleChooser : ComponentBase
     // Apply / set.
     // -------------------------------------------------------------------
 
-    /// <summary>Apply a locale imperatively. Public so consumers can drive the
+    /// <summary>Apply a theme imperatively. Public so consumers can drive the
     /// control from their own UI.</summary>
-    public async Task SetLocaleAsync(string code)
+    public async Task SetThemeAsync(string slug)
     {
-        if (string.IsNullOrEmpty(code)) return;
-        if (code == Value)
+        if (string.IsNullOrEmpty(slug)) return;
+        if (slug == Value)
         {
-            await ApplyLocaleAsync(code);
+            await ApplyThemeAsync(slug);
             return;
         }
-        Value = code;
+        Value = slug;
         await ValueChanged.InvokeAsync(Value);
-        await ApplyLocaleAsync(code);
+        await ApplyThemeAsync(slug);
         StateHasChanged();
     }
 
-    private async Task ApplyLocaleAsync(string code)
+    private async Task ApplyThemeAsync(string slug)
     {
-        var script = BuildApplyScript(code, ApplyDir, StorageKey);
+        var href = ThemeHref(ThemesUrl, slug, Extension);
+        var script = BuildApplyScript(Name, href, slug, StorageKey);
         try
         {
             await JS.InvokeVoidAsync("eval", script);
@@ -445,27 +506,25 @@ public partial class LocaleChooser : ComponentBase
         {
             // ignore prerender / interop failure
         }
-        await OnChange.InvokeAsync(code);
+        await OnChange.InvokeAsync(slug);
     }
 
     /// <summary>Build the JS snippet that mutates the DOM. Exposed for tests.</summary>
-    internal static string BuildApplyScript(string code, bool applyDir, string? storageKey)
+    internal static string BuildApplyScript(string name, string href, string slug, string? storageKey)
     {
-        var tag = Helpers.Locales.Bcp47LocaleTag(code);
-        var dir = Helpers.Locales.IsRtlLocale(code) ? "rtl" : "ltr";
-
-        var tagLit = JsonString(tag);
-        var codeLit = JsonString(code);
-        var dirLine = applyDir
-            ? $"document.documentElement.setAttribute('dir',{JsonString(dir)});"
-            : "";
+        var nameLit = JsonString(name);
+        var hrefLit = JsonString(href);
+        var slugLit = JsonString(slug);
         var storageLine = string.IsNullOrEmpty(storageKey)
             ? ""
-            : $"try{{localStorage.setItem({JsonString(storageKey!)},{codeLit});}}catch(e){{}}";
+            : $"try{{localStorage.setItem({JsonString(storageKey!)},{slugLit});}}catch(e){{}}";
 
         return "(function(){"
-            + $"document.documentElement.setAttribute('lang',{tagLit});"
-            + dirLine
+            + $"var n={nameLit};var sel='link[data-lily-theme-picker=\"'+n+'\"]';"
+            + "var l=document.head.querySelector(sel);"
+            + "if(!l){l=document.createElement('link');l.rel='stylesheet';l.setAttribute('data-lily-theme-picker',n);document.head.appendChild(l);}"
+            + $"l.href={hrefLit};"
+            + $"document.documentElement.setAttribute('data-theme',{slugLit});"
             + storageLine
             + "})();";
     }

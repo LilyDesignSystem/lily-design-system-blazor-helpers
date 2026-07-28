@@ -1,4 +1,4 @@
-// ThemeChooser — code-behind. See spec/index.md for the contract.
+// TextSizePicker — code-behind. See spec/index.md for the contract.
 
 using System;
 using System.Collections.Generic;
@@ -14,11 +14,11 @@ namespace LilyDesignSystem.Blazor.Helpers;
 /// <summary>
 /// Context passed to a custom <c>ChildContent</c> render fragment. The
 /// fragment replaces the default glyph inside the button; it does not
-/// render options. See <c>spec/index.md §4.1</c>.
+/// render options. See <c>spec/index.md §4.2</c>.
 /// </summary>
-public sealed class ThemeChooserContext
+public sealed class TextSizePickerContext
 {
-    /// <summary>Currently selected theme slug.</summary>
+    /// <summary>Currently selected size slug.</summary>
     public required string Value { get; init; }
 
     /// <summary>Is the listbox open?</summary>
@@ -28,10 +28,16 @@ public sealed class ThemeChooserContext
     public required Func<string, string> LabelFor { get; init; }
 }
 
-public partial class ThemeChooser : ComponentBase
+public partial class TextSizePicker : ComponentBase
 {
-    /// <summary>Default button glyph: U+25D1 CIRCLE WITH RIGHT HALF BLACK.</summary>
-    public const string CircleWithRightHalfBlack = "\u25D1";
+    /// <summary>Default button glyph: U+0041 LATIN CAPITAL LETTER A.</summary>
+    /// <remarks>
+    /// Deliberately a letter, not a pictograph. U+1F5DB DECREASE FONT SIZE
+    /// SYMBOL has no real glyph in common font stacks and means "decrease"
+    /// rather than "size"; "A" renders in the page's own font everywhere
+    /// and is the conventional text-size affordance.
+    /// </remarks>
+    public const string LatinCapitalLetterA = "A";
 
     /// <summary>Typeahead buffer lifetime, per the APG listbox pattern.</summary>
     private static readonly TimeSpan TypeaheadWindow = TimeSpan.FromMilliseconds(500);
@@ -46,43 +52,32 @@ public partial class ThemeChooser : ComponentBase
     /// <summary>Accessible name for the button and the listbox. Required.</summary>
     [Parameter, EditorRequired] public string Label { get; set; } = "";
 
-    /// <summary>Base URL of the themes directory, e.g. "/assets/themes/".</summary>
-    [Parameter, EditorRequired] public string ThemesUrl { get; set; } = "";
+    /// <summary>Available text-size slugs.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<string> Sizes { get; set; } = Array.Empty<string>();
 
-    /// <summary>Available theme slugs.</summary>
-    [Parameter, EditorRequired] public IReadOnlyList<string> Themes { get; set; } = Array.Empty<string>();
-
-    /// <summary>Currently selected theme slug. Bindable via <c>@bind-Value</c>.</summary>
+    /// <summary>Currently selected size slug. Bindable via <c>@bind-Value</c>.</summary>
     [Parameter] public string Value { get; set; } = "";
 
     /// <summary>Two-way binding callback for <see cref="Value"/>.</summary>
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
 
-    /// <summary>Initial theme when nothing else is supplied.</summary>
+    /// <summary>Initial size when nothing else is supplied.</summary>
     [Parameter] public string? DefaultValue { get; set; }
 
-    /// <summary>If set, persist the selection to <c>localStorage</c> under this key.</summary>
+    /// <summary>If set, persist the selection to <c>localStorage</c>.</summary>
     [Parameter] public string? StorageKey { get; set; }
 
-    /// <summary>Resolve <c>prefers-color-scheme</c> to a supported theme on
-    /// first visit. Mirrors <c>DetectFromNavigator</c> on LocaleChooser.</summary>
-    [Parameter] public bool DetectFromSystem { get; set; }
+    /// <summary>Shared <c>name</c> attribute for the hidden input.</summary>
+    [Parameter] public string Name { get; set; } = "text-size";
 
-    /// <summary>Shared <c>name</c> attribute for the hidden input and the
-    /// <c>data-lily-theme-chooser</c> discriminator on the managed <c>&lt;link&gt;</c>.</summary>
-    [Parameter] public string Name { get; set; } = "theme";
-
-    /// <summary>File extension appended to each slug when constructing the URL.</summary>
-    [Parameter] public string Extension { get; set; } = ".css";
-
-    /// <summary>Optional pretty labels per slug.</summary>
-    [Parameter] public IReadOnlyDictionary<string, string> ThemeLabels { get; set; }
+    /// <summary>Optional pretty labels per size slug.</summary>
+    [Parameter] public IReadOnlyDictionary<string, string> SizeLabels { get; set; }
         = new Dictionary<string, string>();
 
-    /// <summary>Replaces the default half-circle glyph inside the button.</summary>
-    [Parameter] public RenderFragment<ThemeChooserContext>? ChildContent { get; set; }
+    /// <summary>Replaces the default "A" glyph inside the button.</summary>
+    [Parameter] public RenderFragment<TextSizePickerContext>? ChildContent { get; set; }
 
-    /// <summary>Called after the control applies a new theme.</summary>
+    /// <summary>Called after the control applies a new size.</summary>
     [Parameter] public EventCallback<string> OnChange { get; set; }
 
     /// <summary>Extra CSS class merged into the root &lt;div&gt;.</summary>
@@ -98,7 +93,7 @@ public partial class ThemeChooser : ComponentBase
     // Instance state.
     // -------------------------------------------------------------------
 
-    private readonly string _baseId = $"theme-chooser-{Interlocked.Increment(ref _uid)}";
+    private readonly string _baseId = $"text-size-picker-{Interlocked.Increment(ref _uid)}";
 
     private bool _initialised;
     private bool _open;
@@ -131,60 +126,26 @@ public partial class ThemeChooser : ComponentBase
 
     /// <summary>Only advertised while open and pointing at a real option.</summary>
     private string? ActiveDescendantId
-        => _open && _activeIndex >= 0 && _activeIndex < Themes.Count
+        => _open && _activeIndex >= 0 && _activeIndex < Sizes.Count
             ? OptionId(_activeIndex)
             : null;
 
-    private string RootClass => $"theme-chooser {CssClass}".Trim();
+    private string RootClass => $"text-size-picker {CssClass}".Trim();
 
     // -------------------------------------------------------------------
     // Helpers — exposed for tests and consumers.
     // -------------------------------------------------------------------
 
-    /// <summary>Normalise the themes directory URL to end with exactly one "/".</summary>
-    public static string NormaliseThemesUrl(string themesUrl)
-        => themesUrl.EndsWith('/') ? themesUrl : themesUrl + "/";
-
-    /// <summary>Construct the href for a given theme slug.</summary>
-    public static string ThemeHref(string themesUrl, string slug, string extension)
-        => NormaliseThemesUrl(themesUrl) + slug + extension;
-
     /// <summary>
-    /// Map an OS colour-scheme preference onto a supported theme slug.
-    /// Mirrors <c>Locales.MatchNavigatorLanguage</c>: the browser reading
-    /// happens in the interop probe, and this function is the pure,
-    /// separately-testable decision.
-    /// </summary>
-    /// <param name="prefersDark">
-    /// The result of <c>matchMedia("(prefers-color-scheme: dark)").matches</c>,
-    /// or <c>null</c> when <c>matchMedia</c> is unavailable — prerender /
-    /// static SSR, or a host without the API. Null always yields "".
-    /// </param>
-    /// <param name="themes">The supported theme slugs.</param>
-    /// <returns>"dark" / "light" when supported, otherwise "".</returns>
-    public static string MatchSystemTheme(bool? prefersDark, IReadOnlyList<string> themes)
-    {
-        if (prefersDark is null) return "";
-        var wanted = prefersDark.Value ? "dark" : "light";
-        foreach (var theme in themes)
-        {
-            if (theme == wanted) return wanted;
-        }
-        return "";
-    }
-
-    /// <summary>
-    /// Resolve a theme slug to its display label: each hyphen-separated
-    /// word title-cased, so a slug like
-    /// "united-kingdom-national-health-service-england-for-patients"
-    /// renders as "United Kingdom National Health Service England For
-    /// Patients". Mirrors <c>Locales.LocaleName</c> in LocaleChooser.
+    /// Resolve a size slug to its display label: each hyphen-separated
+    /// word title-cased, so <c>"x-large"</c> renders as <c>"X Large"</c>.
+    /// Mirrors <c>ThemePicker.ThemeName</c> and <c>Locales.LocaleName</c>.
     /// </summary>
     /// <remarks>
     /// Public and pure, so consumers driving the control from their own
     /// UI can render matching labels without duplicating the rule.
     /// </remarks>
-    public static string ThemeName(string slug)
+    public static string SizeName(string slug)
     {
         if (string.IsNullOrEmpty(slug)) return slug;
         return string.Join(" ", slug.Split('-')
@@ -192,14 +153,14 @@ public partial class ThemeChooser : ComponentBase
     }
 
     /// <summary>Instance label resolution: consumer override first, then
-    /// the shared <see cref="ThemeName"/> rule.</summary>
-    private string LabelFor(string theme)
+    /// the shared <see cref="SizeName"/> rule.</summary>
+    private string LabelFor(string slug)
     {
-        if (ThemeLabels.TryGetValue(theme, out var pretty)) return pretty;
-        return ThemeName(theme);
+        if (SizeLabels.TryGetValue(slug, out var pretty)) return pretty;
+        return SizeName(slug);
     }
 
-    private ThemeChooserContext BuildContext() => new()
+    private TextSizePickerContext BuildContext() => new()
     {
         Value = Value ?? "",
         Open = _open,
@@ -225,7 +186,7 @@ public partial class ThemeChooser : ComponentBase
                     await ValueChanged.InvokeAsync(Value);
                     StateHasChanged();
                 }
-                await ApplyThemeAsync(initial);
+                await ApplySizeAsync(initial);
             }
         }
 
@@ -265,43 +226,20 @@ public partial class ThemeChooser : ComponentBase
             {
                 var stored = await JS.InvokeAsync<string?>(
                     "eval",
-                    $"(function(){{try{{return localStorage.getItem({JsonString(StorageKey!)});}}catch(e){{return null;}}}})()"
-                );
+                    $"(function(){{try{{return localStorage.getItem({JsonString(StorageKey!)});}}catch(e){{return null;}}}})()");
                 if (!string.IsNullOrEmpty(stored)) return stored!;
             }
-            catch
-            {
-                // ignore prerender / interop failure
-            }
-        }
-
-        if (DetectFromSystem)
-        {
-            try
-            {
-                // matchMedia is absent during prerender and in some hosts;
-                // the probe returns null there and MatchSystemTheme yields "".
-                var prefersDark = await JS.InvokeAsync<bool?>(
-                    "eval",
-                    "(function(){try{if(typeof matchMedia!=='function')return null;"
-                    + "return matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){return null;}})()");
-                var match = MatchSystemTheme(prefersDark, Themes);
-                if (!string.IsNullOrEmpty(match)) return match;
-            }
-            catch
-            {
-                // ignore prerender / interop failure
-            }
+            catch { /* prerender / interop unavailable */ }
         }
 
         if (!string.IsNullOrEmpty(DefaultValue)) return DefaultValue!;
-        if (Themes.Count == 0) return "";
+        if (Sizes.Count == 0) return "";
 
-        foreach (var t in Themes)
+        foreach (var s in Sizes)
         {
-            if (t == "light") return "light";
+            if (s == "medium") return "medium";
         }
-        return Themes[0];
+        return Sizes[0];
     }
 
     // -------------------------------------------------------------------
@@ -312,7 +250,7 @@ public partial class ThemeChooser : ComponentBase
     /// one (or the first), unless <paramref name="startIndex"/> overrides it.</summary>
     private void OpenList(int? startIndex = null)
     {
-        if (Themes.Count == 0) return;
+        if (Sizes.Count == 0) return;
         var selected = IndexOfValue();
         _activeIndex = startIndex ?? (selected >= 0 ? selected : 0);
         _open = true;
@@ -338,20 +276,20 @@ public partial class ThemeChooser : ComponentBase
 
     private int IndexOfValue()
     {
-        for (var i = 0; i < Themes.Count; i++)
+        for (var i = 0; i < Sizes.Count; i++)
         {
-            if (Themes[i] == Value) return i;
+            if (Sizes[i] == Value) return i;
         }
         return -1;
     }
 
     private async Task ChooseAsync(int index)
     {
-        if (index >= 0 && index < Themes.Count)
+        if (index >= 0 && index < Sizes.Count)
         {
-            var slug = Themes[index];
+            var slug = Sizes[index];
             CloseList();
-            if (!string.IsNullOrEmpty(slug)) await SetThemeAsync(slug);
+            if (!string.IsNullOrEmpty(slug)) await SetSizeAsync(slug);
             return;
         }
         CloseList();
@@ -359,9 +297,9 @@ public partial class ThemeChooser : ComponentBase
 
     private void MoveActive(int delta)
     {
-        if (Themes.Count == 0) return;
+        if (Sizes.Count == 0) return;
         // Clamp; the APG listbox pattern does not wrap.
-        var next = Math.Min(Math.Max(_activeIndex + delta, 0), Themes.Count - 1);
+        var next = Math.Min(Math.Max(_activeIndex + delta, 0), Sizes.Count - 1);
         _activeIndex = next;
     }
 
@@ -374,10 +312,10 @@ public partial class ThemeChooser : ComponentBase
 
         var from = _activeIndex < 0 ? 0 : _activeIndex;
         // Search forward from the active option, wrapping once.
-        for (var n = 0; n < Themes.Count; n++)
+        for (var n = 0; n < Sizes.Count; n++)
         {
-            var i = (from + n) % Themes.Count;
-            if (LabelFor(Themes[i]).ToLowerInvariant().StartsWith(_typeahead, StringComparison.Ordinal))
+            var i = (from + n) % Sizes.Count;
+            if (LabelFor(Sizes[i]).ToLowerInvariant().StartsWith(_typeahead, StringComparison.Ordinal))
             {
                 _activeIndex = i;
                 return;
@@ -415,7 +353,7 @@ public partial class ThemeChooser : ComponentBase
                 break;
             case "ArrowUp":
                 _suppressNextClick = true;
-                OpenList(Themes.Count - 1);
+                OpenList(Sizes.Count - 1);
                 break;
         }
         return Task.CompletedTask;
@@ -435,7 +373,7 @@ public partial class ThemeChooser : ComponentBase
                 _activeIndex = 0;
                 break;
             case "End":
-                _activeIndex = Themes.Count - 1;
+                _activeIndex = Sizes.Count - 1;
                 break;
             case "Enter":
             case " ":
@@ -478,26 +416,25 @@ public partial class ThemeChooser : ComponentBase
     // Apply / set.
     // -------------------------------------------------------------------
 
-    /// <summary>Apply a theme imperatively. Public so consumers can drive the
+    /// <summary>Apply a size imperatively. Public so consumers can drive the
     /// control from their own UI.</summary>
-    public async Task SetThemeAsync(string slug)
+    public async Task SetSizeAsync(string slug)
     {
         if (string.IsNullOrEmpty(slug)) return;
         if (slug == Value)
         {
-            await ApplyThemeAsync(slug);
+            await ApplySizeAsync(slug);
             return;
         }
         Value = slug;
         await ValueChanged.InvokeAsync(Value);
-        await ApplyThemeAsync(slug);
+        await ApplySizeAsync(slug);
         StateHasChanged();
     }
 
-    private async Task ApplyThemeAsync(string slug)
+    private async Task ApplySizeAsync(string slug)
     {
-        var href = ThemeHref(ThemesUrl, slug, Extension);
-        var script = BuildApplyScript(Name, href, slug, StorageKey);
+        var script = BuildApplyScript(slug, StorageKey);
         try
         {
             await JS.InvokeVoidAsync("eval", script);
@@ -510,21 +447,15 @@ public partial class ThemeChooser : ComponentBase
     }
 
     /// <summary>Build the JS snippet that mutates the DOM. Exposed for tests.</summary>
-    internal static string BuildApplyScript(string name, string href, string slug, string? storageKey)
+    internal static string BuildApplyScript(string slug, string? storageKey)
     {
-        var nameLit = JsonString(name);
-        var hrefLit = JsonString(href);
         var slugLit = JsonString(slug);
         var storageLine = string.IsNullOrEmpty(storageKey)
             ? ""
             : $"try{{localStorage.setItem({JsonString(storageKey!)},{slugLit});}}catch(e){{}}";
 
         return "(function(){"
-            + $"var n={nameLit};var sel='link[data-lily-theme-chooser=\"'+n+'\"]';"
-            + "var l=document.head.querySelector(sel);"
-            + "if(!l){l=document.createElement('link');l.rel='stylesheet';l.setAttribute('data-lily-theme-chooser',n);document.head.appendChild(l);}"
-            + $"l.href={hrefLit};"
-            + $"document.documentElement.setAttribute('data-theme',{slugLit});"
+            + $"document.documentElement.setAttribute('data-text-size',{slugLit});"
             + storageLine
             + "})();";
     }

@@ -1,13 +1,14 @@
 @namespace LilyDesignSystem.Blazor.Helpers
 
 @*
-    TextSizeChooser — Blazor helper component.
+    ThemePicker — Blazor helper component.
     Single source of truth: spec/index.md (§1–§9).
 
     Renders an icon button that opens a dropdown listbox of available
-    text sizes (WAI-ARIA APG listbox pattern). On every selection it
-    (1) sets data-text-size on <html>, (2) optionally persists to
-    localStorage, and (3) invokes OnChange / ValueChanged.
+    themes (WAI-ARIA APG listbox pattern). On every selection it
+    (1) swaps the href of a managed <link> in <head>, (2) sets
+    data-theme on <html>, (3) optionally persists to localStorage, and
+    (4) invokes OnChange / ValueChanged.
 
     All DOM writes happen through IJSRuntime inside OnAfterRenderAsync,
     so the component is SSR / prerender safe.
@@ -21,7 +22,7 @@
     <input type="hidden" name="@Name" value="@Value" />
 
     <button type="button"
-            class="text-size-chooser-button"
+            class="theme-picker-button"
             @ref="_buttonElement"
             aria-label="@Label"
             aria-haspopup="listbox"
@@ -37,13 +38,13 @@
         {
             @* The glyph is decorative: the accessible name is the button's
                aria-label, never the character itself. *@
-            <span class="text-size-chooser-icon" aria-hidden="true">@LatinCapitalLetterA</span>
+            <span class="theme-picker-icon" aria-hidden="true">@CircleWithRightHalfBlack</span>
         }
     </button>
 
     @* mousedown default is suppressed so clicking an option does not blur
        the listbox before the click handler runs. *@
-    <ul class="text-size-chooser-list"
+    <ul class="theme-picker-list"
         id="@ListId"
         role="listbox"
         aria-label="@Label"
@@ -53,16 +54,16 @@
         @ref="_listElement"
         @onkeydown="OnListKeyDownAsync"
         @onmousedown:preventDefault="true">
-        @for (var i = 0; i < Sizes.Count; i++)
+        @for (var i = 0; i < Themes.Count; i++)
         {
             var index = i;
-            var size = Sizes[index];
-            <li class="text-size-chooser-option"
+            var theme = Themes[index];
+            <li class="theme-picker-option"
                 id="@OptionId(index)"
                 role="option"
-                aria-selected="@(size == Value ? "true" : "false")"
+                aria-selected="@(theme == Value ? "true" : "false")"
                 data-active="@(index == _activeIndex ? "" : null)"
-                @onclick="() => ChooseAsync(index)">@LabelFor(size)</li>
+                @onclick="() => ChooseAsync(index)">@LabelFor(theme)</li>
         }
     </ul>
 </div>

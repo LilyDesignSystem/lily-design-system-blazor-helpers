@@ -1,8 +1,7 @@
-// TextSizeChooser — code-behind. See spec/index.md for the contract.
+// LocalePicker — code-behind. See spec/index.md for the contract.
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
@@ -16,28 +15,28 @@ namespace LilyDesignSystem.Blazor.Helpers;
 /// fragment replaces the default glyph inside the button; it does not
 /// render options. See <c>spec/index.md §4.2</c>.
 /// </summary>
-public sealed class TextSizeChooserContext
+public sealed class LocalePickerContext
 {
-    /// <summary>Currently selected size slug.</summary>
+    /// <summary>Currently selected locale code (consumer form, not BCP 47).</summary>
     public required string Value { get; init; }
 
     /// <summary>Is the listbox open?</summary>
     public required bool Open { get; init; }
 
-    /// <summary>Resolve a slug to its display label.</summary>
+    /// <summary>Resolve a locale code to its display label.</summary>
     public required Func<string, string> LabelFor { get; init; }
 }
 
-public partial class TextSizeChooser : ComponentBase
+public partial class LocalePicker : ComponentBase
 {
-    /// <summary>Default button glyph: U+0041 LATIN CAPITAL LETTER A.</summary>
-    /// <remarks>
-    /// Deliberately a letter, not a pictograph. U+1F5DB DECREASE FONT SIZE
-    /// SYMBOL has no real glyph in common font stacks and means "decrease"
-    /// rather than "size"; "A" renders in the page's own font everywhere
-    /// and is the conventional text-size affordance.
-    /// </remarks>
-    public const string LatinCapitalLetterA = "A";
+    /// <summary>
+    /// Default button glyph: U+1F310 GLOBE WITH MERIDIANS followed by
+    /// U+FE0E VARIATION SELECTOR-15. VS15 requests the *text*
+    /// presentation, so the globe renders monochrome and matches
+    /// ThemePicker's U+25D1. Without it browsers pick the colour-emoji
+    /// font and the globe comes out blue.
+    /// </summary>
+    public const string GlobeWithMeridians = "\U0001F310\uFE0E";
 
     /// <summary>Typeahead buffer lifetime, per the APG listbox pattern.</summary>
     private static readonly TimeSpan TypeaheadWindow = TimeSpan.FromMilliseconds(500);
@@ -52,32 +51,38 @@ public partial class TextSizeChooser : ComponentBase
     /// <summary>Accessible name for the button and the listbox. Required.</summary>
     [Parameter, EditorRequired] public string Label { get; set; } = "";
 
-    /// <summary>Available text-size slugs.</summary>
-    [Parameter, EditorRequired] public IReadOnlyList<string> Sizes { get; set; } = Array.Empty<string>();
+    /// <summary>Available locale codes.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<string> Locales { get; set; } = Array.Empty<string>();
 
-    /// <summary>Currently selected size slug. Bindable via <c>@bind-Value</c>.</summary>
+    /// <summary>Currently selected locale code. Bindable via <c>@bind-Value</c>.</summary>
     [Parameter] public string Value { get; set; } = "";
 
     /// <summary>Two-way binding callback for <see cref="Value"/>.</summary>
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
 
-    /// <summary>Initial size when nothing else is supplied.</summary>
+    /// <summary>Initial locale when nothing else is supplied.</summary>
     [Parameter] public string? DefaultValue { get; set; }
 
     /// <summary>If set, persist the selection to <c>localStorage</c>.</summary>
     [Parameter] public string? StorageKey { get; set; }
 
-    /// <summary>Shared <c>name</c> attribute for the hidden input.</summary>
-    [Parameter] public string Name { get; set; } = "text-size";
+    /// <summary>Resolve <c>navigator.languages</c> on first visit.</summary>
+    [Parameter] public bool DetectFromNavigator { get; set; }
 
-    /// <summary>Optional pretty labels per size slug.</summary>
-    [Parameter] public IReadOnlyDictionary<string, string> SizeLabels { get; set; }
+    /// <summary><c>name</c> attribute of the hidden input that carries the value.</summary>
+    [Parameter] public string Name { get; set; } = "locale";
+
+    /// <summary>If false, the control only writes <c>lang</c> and never touches <c>dir</c>.</summary>
+    [Parameter] public bool ApplyDir { get; set; } = true;
+
+    /// <summary>Optional pretty labels per locale code.</summary>
+    [Parameter] public IReadOnlyDictionary<string, string> LocaleLabels { get; set; }
         = new Dictionary<string, string>();
 
-    /// <summary>Replaces the default "A" glyph inside the button.</summary>
-    [Parameter] public RenderFragment<TextSizeChooserContext>? ChildContent { get; set; }
+    /// <summary>Replaces the default globe glyph inside the button.</summary>
+    [Parameter] public RenderFragment<LocalePickerContext>? ChildContent { get; set; }
 
-    /// <summary>Called after the control applies a new size.</summary>
+    /// <summary>Called after the control applies a new locale (consumer-form code, not BCP 47).</summary>
     [Parameter] public EventCallback<string> OnChange { get; set; }
 
     /// <summary>Extra CSS class merged into the root &lt;div&gt;.</summary>
@@ -93,7 +98,7 @@ public partial class TextSizeChooser : ComponentBase
     // Instance state.
     // -------------------------------------------------------------------
 
-    private readonly string _baseId = $"text-size-chooser-{Interlocked.Increment(ref _uid)}";
+    private readonly string _baseId = $"locale-picker-{Interlocked.Increment(ref _uid)}";
 
     private bool _initialised;
     private bool _open;
@@ -126,41 +131,22 @@ public partial class TextSizeChooser : ComponentBase
 
     /// <summary>Only advertised while open and pointing at a real option.</summary>
     private string? ActiveDescendantId
-        => _open && _activeIndex >= 0 && _activeIndex < Sizes.Count
+        => _open && _activeIndex >= 0 && _activeIndex < Locales.Count
             ? OptionId(_activeIndex)
             : null;
 
-    private string RootClass => $"text-size-chooser {CssClass}".Trim();
+    private string RootClass => $"locale-picker {CssClass}".Trim();
 
-    // -------------------------------------------------------------------
-    // Helpers — exposed for tests and consumers.
-    // -------------------------------------------------------------------
-
-    /// <summary>
-    /// Resolve a size slug to its display label: each hyphen-separated
-    /// word title-cased, so <c>"x-large"</c> renders as <c>"X Large"</c>.
-    /// Mirrors <c>ThemeChooser.ThemeName</c> and <c>Locales.LocaleName</c>.
-    /// </summary>
-    /// <remarks>
-    /// Public and pure, so consumers driving the control from their own
-    /// UI can render matching labels without duplicating the rule.
-    /// </remarks>
-    public static string SizeName(string slug)
+    internal string LabelFor(string locale)
     {
-        if (string.IsNullOrEmpty(slug)) return slug;
-        return string.Join(" ", slug.Split('-')
-            .Select(word => word.Length == 0 ? word : char.ToUpperInvariant(word[0]) + word[1..]));
+        if (LocaleLabels.TryGetValue(locale, out var pretty)) return pretty;
+        if (Helpers.Locales.DefaultLocaleLabels.TryGetValue(locale, out var built)) return built;
+        return locale;
     }
 
-    /// <summary>Instance label resolution: consumer override first, then
-    /// the shared <see cref="SizeName"/> rule.</summary>
-    private string LabelFor(string slug)
-    {
-        if (SizeLabels.TryGetValue(slug, out var pretty)) return pretty;
-        return SizeName(slug);
-    }
+    internal string TagFor(string locale) => Helpers.Locales.Bcp47LocaleTag(locale);
 
-    private TextSizeChooserContext BuildContext() => new()
+    private LocalePickerContext BuildContext() => new()
     {
         Value = Value ?? "",
         Open = _open,
@@ -186,7 +172,7 @@ public partial class TextSizeChooser : ComponentBase
                     await ValueChanged.InvokeAsync(Value);
                     StateHasChanged();
                 }
-                await ApplySizeAsync(initial);
+                await ApplyLocaleAsync(initial);
             }
         }
 
@@ -232,14 +218,30 @@ public partial class TextSizeChooser : ComponentBase
             catch { /* prerender / interop unavailable */ }
         }
 
-        if (!string.IsNullOrEmpty(DefaultValue)) return DefaultValue!;
-        if (Sizes.Count == 0) return "";
-
-        foreach (var s in Sizes)
+        if (DetectFromNavigator)
         {
-            if (s == "medium") return "medium";
+            try
+            {
+                var langs = await JS.InvokeAsync<string[]?>(
+                    "eval",
+                    "(function(){try{if(navigator.languages&&navigator.languages.length>0)return Array.from(navigator.languages);if(navigator.language)return [navigator.language];return [];}catch(e){return [];}})()");
+                if (langs is not null)
+                {
+                    var match = Helpers.Locales.MatchNavigatorLanguage(langs, Locales);
+                    if (!string.IsNullOrEmpty(match)) return match;
+                }
+            }
+            catch { /* prerender / interop unavailable */ }
         }
-        return Sizes[0];
+
+        if (!string.IsNullOrEmpty(DefaultValue)) return DefaultValue!;
+        if (Locales.Count == 0) return "";
+
+        foreach (var l in Locales)
+        {
+            if (l == "en") return "en";
+        }
+        return Locales[0];
     }
 
     // -------------------------------------------------------------------
@@ -250,7 +252,7 @@ public partial class TextSizeChooser : ComponentBase
     /// one (or the first), unless <paramref name="startIndex"/> overrides it.</summary>
     private void OpenList(int? startIndex = null)
     {
-        if (Sizes.Count == 0) return;
+        if (Locales.Count == 0) return;
         var selected = IndexOfValue();
         _activeIndex = startIndex ?? (selected >= 0 ? selected : 0);
         _open = true;
@@ -276,20 +278,20 @@ public partial class TextSizeChooser : ComponentBase
 
     private int IndexOfValue()
     {
-        for (var i = 0; i < Sizes.Count; i++)
+        for (var i = 0; i < Locales.Count; i++)
         {
-            if (Sizes[i] == Value) return i;
+            if (Locales[i] == Value) return i;
         }
         return -1;
     }
 
     private async Task ChooseAsync(int index)
     {
-        if (index >= 0 && index < Sizes.Count)
+        if (index >= 0 && index < Locales.Count)
         {
-            var slug = Sizes[index];
+            var code = Locales[index];
             CloseList();
-            if (!string.IsNullOrEmpty(slug)) await SetSizeAsync(slug);
+            if (!string.IsNullOrEmpty(code)) await SetLocaleAsync(code);
             return;
         }
         CloseList();
@@ -297,9 +299,9 @@ public partial class TextSizeChooser : ComponentBase
 
     private void MoveActive(int delta)
     {
-        if (Sizes.Count == 0) return;
+        if (Locales.Count == 0) return;
         // Clamp; the APG listbox pattern does not wrap.
-        var next = Math.Min(Math.Max(_activeIndex + delta, 0), Sizes.Count - 1);
+        var next = Math.Min(Math.Max(_activeIndex + delta, 0), Locales.Count - 1);
         _activeIndex = next;
     }
 
@@ -312,10 +314,10 @@ public partial class TextSizeChooser : ComponentBase
 
         var from = _activeIndex < 0 ? 0 : _activeIndex;
         // Search forward from the active option, wrapping once.
-        for (var n = 0; n < Sizes.Count; n++)
+        for (var n = 0; n < Locales.Count; n++)
         {
-            var i = (from + n) % Sizes.Count;
-            if (LabelFor(Sizes[i]).ToLowerInvariant().StartsWith(_typeahead, StringComparison.Ordinal))
+            var i = (from + n) % Locales.Count;
+            if (LabelFor(Locales[i]).ToLowerInvariant().StartsWith(_typeahead, StringComparison.Ordinal))
             {
                 _activeIndex = i;
                 return;
@@ -353,7 +355,7 @@ public partial class TextSizeChooser : ComponentBase
                 break;
             case "ArrowUp":
                 _suppressNextClick = true;
-                OpenList(Sizes.Count - 1);
+                OpenList(Locales.Count - 1);
                 break;
         }
         return Task.CompletedTask;
@@ -373,7 +375,7 @@ public partial class TextSizeChooser : ComponentBase
                 _activeIndex = 0;
                 break;
             case "End":
-                _activeIndex = Sizes.Count - 1;
+                _activeIndex = Locales.Count - 1;
                 break;
             case "Enter":
             case " ":
@@ -416,25 +418,25 @@ public partial class TextSizeChooser : ComponentBase
     // Apply / set.
     // -------------------------------------------------------------------
 
-    /// <summary>Apply a size imperatively. Public so consumers can drive the
+    /// <summary>Apply a locale imperatively. Public so consumers can drive the
     /// control from their own UI.</summary>
-    public async Task SetSizeAsync(string slug)
+    public async Task SetLocaleAsync(string code)
     {
-        if (string.IsNullOrEmpty(slug)) return;
-        if (slug == Value)
+        if (string.IsNullOrEmpty(code)) return;
+        if (code == Value)
         {
-            await ApplySizeAsync(slug);
+            await ApplyLocaleAsync(code);
             return;
         }
-        Value = slug;
+        Value = code;
         await ValueChanged.InvokeAsync(Value);
-        await ApplySizeAsync(slug);
+        await ApplyLocaleAsync(code);
         StateHasChanged();
     }
 
-    private async Task ApplySizeAsync(string slug)
+    private async Task ApplyLocaleAsync(string code)
     {
-        var script = BuildApplyScript(slug, StorageKey);
+        var script = BuildApplyScript(code, ApplyDir, StorageKey);
         try
         {
             await JS.InvokeVoidAsync("eval", script);
@@ -443,19 +445,27 @@ public partial class TextSizeChooser : ComponentBase
         {
             // ignore prerender / interop failure
         }
-        await OnChange.InvokeAsync(slug);
+        await OnChange.InvokeAsync(code);
     }
 
     /// <summary>Build the JS snippet that mutates the DOM. Exposed for tests.</summary>
-    internal static string BuildApplyScript(string slug, string? storageKey)
+    internal static string BuildApplyScript(string code, bool applyDir, string? storageKey)
     {
-        var slugLit = JsonString(slug);
+        var tag = Helpers.Locales.Bcp47LocaleTag(code);
+        var dir = Helpers.Locales.IsRtlLocale(code) ? "rtl" : "ltr";
+
+        var tagLit = JsonString(tag);
+        var codeLit = JsonString(code);
+        var dirLine = applyDir
+            ? $"document.documentElement.setAttribute('dir',{JsonString(dir)});"
+            : "";
         var storageLine = string.IsNullOrEmpty(storageKey)
             ? ""
-            : $"try{{localStorage.setItem({JsonString(storageKey!)},{slugLit});}}catch(e){{}}";
+            : $"try{{localStorage.setItem({JsonString(storageKey!)},{codeLit});}}catch(e){{}}";
 
         return "(function(){"
-            + $"document.documentElement.setAttribute('data-text-size',{slugLit});"
+            + $"document.documentElement.setAttribute('lang',{tagLit});"
+            + dirLine
             + storageLine
             + "})();";
     }
